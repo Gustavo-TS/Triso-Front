@@ -10,9 +10,15 @@ async function request(path, options = {}) {
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
   })
-  const body = response.status === 204 ? null : await response.json().catch(() => null)
+  const rawBody = response.status === 204 ? '' : await response.text()
+  let body = null
+  if (rawBody) {
+    try { body = JSON.parse(rawBody) } catch { body = { message: rawBody } }
+  }
   if (!response.ok) {
+    if (!body) body = { message: `Não foi possível concluir a solicitação (HTTP ${response.status}).` }
     const validationMessage = body?.errors && Object.values(body.errors).flat().join(' ')
+    if (body?.detail && !body.message) body.message = body.detail
     throw new ApiError(validationMessage || body?.message || body?.title || 'Não foi possível concluir a solicitação.', response.status, body)
   }
   return body

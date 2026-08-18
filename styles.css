@@ -10,5 +10,8 @@
 .printing-art .orbit-shadow{z-index:0}
 .printing-art .print-layer{z-index:2;width:78%}
 .printing-placeholder{width:42%;aspect-ratio:1;border:1px dashed rgba(255,255,255,.18)}
+.hero-stage.is-loading .printing-placeholder{border:0;background:linear-gradient(110deg,rgba(255,255,255,.035) 30%,rgba(255,255,255,.1) 45%,rgba(255,255,255,.035) 60%);background-size:220% 100%;animation:heroSkeleton 1.4s linear infinite;clip-path:polygon(0 0,82% 0,100% 18%,100% 100%,18% 100%,0 82%)}
+.hero-stage.is-loading .stage-label i{background:var(--purple-2);box-shadow:0 0 12px var(--purple-2)}
+@keyframes heroSkeleton{to{background-position:-220% 0}}
 .stage-progress span[style]{animation:none;transition:width .18s linear}
 @keyframes printingPulse{50%{transform:translateY(-5px) scale(1.015)}}

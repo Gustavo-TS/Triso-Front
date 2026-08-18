@@ -14,9 +14,8 @@ const normalize = product => {
     name: link.marketplace?.name || 'Marketplace',
     slug: link.marketplace?.slug || '',
     url: link.url,
-    externalProductId: link.externalProductId || '',
   }))
-  const cover = product.images?.find(image => image.isCover) || product.images?.[0]
+  const cover = product.images?.[0]
   return {
     ...product,
     categoryId: product.category?.categoryId || product.categoryId,
@@ -40,13 +39,12 @@ const toApiPayload = product => ({
   badge: product.badge?.trim() || null,
   status: product.status || (product.active ? 'published' : 'draft'),
   categoryId: product.categoryId,
-  images: product.images?.length && (product.images.find(image => image.isCover) || product.images[0])?.url === product.imageUrl
-    ? product.images.map((image, index) => ({ url: image.url, altText: image.altText || product.name.trim(), displayOrder: image.displayOrder ?? index, isCover: Boolean(image.isCover) }))
+  images: product.images?.length
+    ? product.images.filter(image => image.url).map((image, index) => ({ url: image.url, altText: image.altText || product.name.trim(), displayOrder: index, isCover: index === 0 }))
     : product.imageUrl ? [{ url: product.imageUrl, altText: product.name.trim(), displayOrder: 0, isCover: true }] : [],
   marketplaceLinks: (product.marketplaces || []).map(listing => ({
     marketplaceId: listing.marketplaceId,
     url: listing.url,
-    externalProductId: listing.externalProductId?.trim() || null,
   })),
 })
 
@@ -97,8 +95,21 @@ export const catalogService = {
     if (!usingApi) return null
     return apiClient.delete(`${APP_CONFIG.endpoints.adminCategories}/${id}`)
   },
-  async listMarketplaces() {
+  async listMarketplaces({ admin = false } = {}) {
     if (!usingApi) return CATALOG_OPTIONS.marketplaces.map(name => ({ id: name, name, slug: name.toLowerCase().replaceAll(' ', '-') }))
-    return unwrapList(await apiClient.get(APP_CONFIG.endpoints.marketplaces))
+    return unwrapList(await apiClient.get(admin ? APP_CONFIG.endpoints.adminMarketplaces : APP_CONFIG.endpoints.marketplaces))
+  },
+  async createMarketplace({ name, active = true }) {
+    if (!usingApi) return { id: crypto.randomUUID(), name, slug: name.toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''), active }
+    return (await apiClient.post(APP_CONFIG.endpoints.adminMarketplaces, { name, active }))?.data
+  },
+  async updateMarketplace(marketplace) {
+    if (!usingApi) return marketplace
+    await apiClient.patch(`${APP_CONFIG.endpoints.adminMarketplaces}/${marketplace.id}`, { name: marketplace.name, active: marketplace.active })
+    return marketplace
+  },
+  async deleteMarketplace(id) {
+    if (!usingApi) return null
+    return apiClient.delete(`${APP_CONFIG.endpoints.adminMarketplaces}/${id}`)
   },
 }

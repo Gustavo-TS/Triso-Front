@@ -24,7 +24,7 @@ npm run dev
 
 ## Execução local
 
-Com a API disponível em `http://localhost:5266`:
+Com a API publicada disponível em `https://triso-back.onrender.com`:
 
 ```bash
 npm install
@@ -37,7 +37,7 @@ Por padrão, a aplicação usa a API real:
 
 ```env
 VITE_DATA_SOURCE=api
-VITE_API_BASE_URL=http://localhost:5266
+VITE_API_BASE_URL=https://triso-back.onrender.com
 ```
 
 Para usar os dados demonstrativos em `localStorage`, defina `VITE_DATA_SOURCE=mock`. Consulte `docs/API_INTEGRATION.md` para os contratos utilizados.
