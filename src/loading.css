@@ -1,0 +1,7 @@
+.app-loading{min-height:100vh;background:var(--ink);color:white;display:grid;place-content:center;text-align:center;gap:13px}
+.app-loading span{width:34px;height:34px;border:2px solid rgba(255,255,255,.15);border-top-color:var(--purple);border-radius:50%;margin:auto;animation:loadingSpin .75s linear infinite}
+.app-loading p{font:700 8px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:#8d8797}
+@keyframes loadingSpin{to{transform:rotate(360deg)}}
+@keyframes routeEnter{from{opacity:.25;transform:translateY(7px)}to{opacity:1;transform:none}}
+#root.route-enter{animation:routeEnter .38s cubic-bezier(.22,1,.36,1)}
+@media(prefers-reduced-motion:reduce){#root.route-enter{animation:none}}

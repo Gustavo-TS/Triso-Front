@@ -1,0 +1,15 @@
+.product-shape{position:relative;z-index:1;width:56%;height:63%;filter:drop-shadow(0 24px 18px rgba(25,15,50,.24));transition:.55s var(--ease)}
+.product-card:hover .product-shape{transform:scale(1.045) rotate(-1deg)}
+.shape-vase{background:repeating-linear-gradient(0deg,rgba(255,255,255,.13) 0 2px,transparent 2px 5px),linear-gradient(100deg,#3c228f,#967dff 50%,#4521a1);border-radius:42% 42% 28% 28%/26% 26% 14% 14%;clip-path:polygon(31% 0,69% 0,74% 12%,84% 28%,100% 100%,0 100%,16% 28%,26% 12%)}
+.shape-orbit{width:62%;height:62%;border:29px solid #7557ef;border-radius:50%;transform:rotateX(58deg) rotateZ(-18deg);box-shadow:inset 9px 7px 22px rgba(255,255,255,.25),0 26px 35px rgba(70,42,170,.26)}
+.shape-orbit i:first-child{position:absolute;inset:12%;border:20px solid #48bfdc;border-radius:50%;transform:rotateY(66deg)}
+.shape-orbit i:nth-child(2){position:absolute;width:34%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#977fff 25%,#32157e);left:33%;top:33%;box-shadow:0 0 35px #7657ef}
+.shape-dock{height:60%;width:50%;border:12px solid #171523;border-radius:22px;background:linear-gradient(145deg,#292633,#111018);transform:rotate(6deg)}
+.shape-dock::after{content:"";position:absolute;width:165%;height:28%;left:-33%;bottom:-30%;background:linear-gradient(120deg,#9a85ff,#4930bb);transform:skewY(-8deg);border-radius:10px}
+.shape-tray{width:63%;height:47%;background:linear-gradient(145deg,#a899eb,#4326af);transform:rotateX(50deg) rotateZ(-8deg);clip-path:polygon(50% 0,100% 26%,84% 100%,13% 100%,0 26%);border:18px solid #7054da}
+.shape-lamp{width:45%;height:68%;background:repeating-linear-gradient(0deg,rgba(255,255,255,.13) 0 2px,transparent 2px 5px),linear-gradient(100deg,#b74332,#ff987e 50%,#bd4e39);clip-path:polygon(50% 0,80% 30%,100% 100%,0 100%,20% 30%);border-radius:50% 50% 8px 8px}
+.shape-stand{width:52%;height:64%;border:18px solid #171523;border-bottom:0;border-radius:50% 50% 0 0}
+.shape-stand::before{content:"";position:absolute;width:34%;height:90%;background:linear-gradient(#9a82ff,#4c2ac1);left:33%;top:55%}
+.shape-stand::after{content:"";position:absolute;width:150%;height:22%;background:#482ab1;left:-25%;bottom:-55%;clip-path:polygon(14% 0,86% 0,100% 100%,0 100%)}
+.cart-thumb .product-shape{width:46%;height:55%;transform:scale(.8);filter:none}
+.cart-thumb .shape-orbit{border-width:10px}.cart-thumb .shape-orbit i:first-child{border-width:7px}.cart-thumb .shape-dock{border-width:5px}.cart-thumb .shape-stand{border-width:7px}
