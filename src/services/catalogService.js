@@ -14,6 +14,7 @@ const normalize = product => {
     name: link.marketplace?.name || 'Marketplace',
     slug: link.marketplace?.slug || '',
     url: link.url,
+    externalProductId: link.externalProductId || '',
   }))
   const cover = product.images?.[0]
   return {
@@ -45,6 +46,7 @@ const toApiPayload = product => ({
   marketplaceLinks: (product.marketplaces || []).map(listing => ({
     marketplaceId: listing.marketplaceId,
     url: listing.url,
+    externalProductId: listing.externalProductId?.trim() || null,
   })),
 })
 

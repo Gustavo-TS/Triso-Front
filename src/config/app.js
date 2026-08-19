@@ -1,10 +1,8 @@
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
 
-if (!apiBaseUrl) throw new Error('VITE_API_BASE_URL não foi configurada.')
-
 export const APP_CONFIG = {
   dataSource: import.meta.env.VITE_DATA_SOURCE || 'api',
-  apiBaseUrl: apiBaseUrl.replace(/\/$/, ''),
+  apiBaseUrl: apiBaseUrl?.replace(/\/$/, '') || 'http://localhost:5266',
   locale: 'pt-BR',
   currency: 'BRL',
   adminAccountLabel: 'Conta administrativa',
@@ -21,6 +19,8 @@ export const APP_CONFIG = {
     adminProducts: '/api/v1/admin/products',
     adminCategories: '/api/v1/admin/categories',
     adminMarketplaces: '/api/v1/admin/marketplaces',
+    adminUsers: '/api/v1/admin/users',
+    adminPermissions: '/api/v1/admin/permissions',
     analyticsDashboard: '/api/v1/admin/analytics/dashboard',
     login: '/api/v1/auth/login',
     session: '/api/v1/auth/session',

@@ -1,6 +1,6 @@
 export const MOCK_DATABASE = {
   users: [
-    { id: 'usr_admin_01', name: 'Administrador', email: 'admin@triso.com', password: 'triso123', role: 'admin' },
+    { id: 'usr_admin_01', name: 'Administrador', email: 'admin@triso.com', password: 'triso123', idPermission: 1, permission: 'admin', active: true },
   ],
   products: [
     { id: 1, name: 'Luminária Orbit', category: 'decoracao', price: 189, badge: 'Novo', description: 'Luz indireta com presença escultórica.', marketplaces: [{ name: 'Mercado Livre', url: 'https://www.mercadolivre.com.br/' }, { name: 'Shopee', url: 'https://shopee.com.br/' }], imageUrl: '', art: 'orbit', active: true },

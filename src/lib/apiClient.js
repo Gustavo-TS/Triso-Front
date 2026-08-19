@@ -19,7 +19,7 @@ async function request(path, options = {}) {
     if (!body) body = { message: `Não foi possível concluir a solicitação (HTTP ${response.status}).` }
     const validationMessage = body?.errors && Object.values(body.errors).flat().join(' ')
     if (body?.detail && !body.message) body.message = body.detail
-    throw new ApiError(validationMessage || body?.message || body?.title || 'Não foi possível concluir a solicitação.', response.status, body)
+    throw new ApiError(validationMessage || body?.error || body?.message || body?.title || 'Não foi possível concluir a solicitação.', response.status, body)
   }
   return body
 }
