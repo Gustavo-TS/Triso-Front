@@ -1,5 +1,7 @@
 # Triso Studio — React
 
+Aplicação publicada: triso-front.vercel.app
+
 Vitrine responsiva em React + Vite para uma loja de objetos impressos em 3D.
 
 ```bash
