@@ -1,516 +1,4121 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
-import anime from 'animejs/lib/anime.es.js'
-import { APP_CONFIG, CATALOG_OPTIONS, CATEGORY_LABELS } from './config/app.js'
-import { analyticsService } from './services/analyticsService.js'
-import { authService } from './services/authService.js'
-import { catalogService } from './services/catalogService.js'
-import { userService } from './services/userService.js'
-import { useCart } from './features/cart/CartContext.jsx'
-import { AccountPage, CartPage, CheckoutPage, ConfirmationPage, LoginPage as CustomerLoginPage, PaymentReturnPage, RegisterPage } from './features/commerce/CommercePages.jsx'
-import { accountService } from './services/accountService.js'
-import { shippingSettingsService } from './services/shippingSettingsService.js'
-import { getAuthenticatedHome, hasAdminAccess, isCustomer, useAuth } from './features/auth/AuthContext.jsx'
+import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import anime from "animejs/lib/anime.es.js";
+import { APP_CONFIG, CATALOG_OPTIONS, CATEGORY_LABELS } from "./config/app.js";
+import { analyticsService } from "./services/analyticsService.js";
+import { authService } from "./services/authService.js";
+import { catalogService } from "./services/catalogService.js";
+import { userService } from "./services/userService.js";
+import { useCart } from "./features/cart/CartContext.jsx";
+import {
+  AccountPage,
+  CartPage,
+  CheckoutPage,
+  ConfirmationPage,
+  LoginPage as CustomerLoginPage,
+  PaymentReturnPage,
+  RegisterPage,
+} from "./features/commerce/CommercePages.jsx";
+import { accountService } from "./services/accountService.js";
+import { shippingSettingsService } from "./services/shippingSettingsService.js";
+import {
+  getAuthenticatedHome,
+  hasAdminAccess,
+  isCustomer,
+  useAuth,
+} from "./features/auth/AuthContext.jsx";
+import { SiteHeader } from "./components/SiteHeader.jsx";
 
-const categories = CATEGORY_LABELS
-const emptyProduct = CATALOG_OPTIONS.productDefaults
-const ADMIN_EMAIL = APP_CONFIG.adminAccountLabel
-const money = value => Number(value).toLocaleString(APP_CONFIG.locale, { style: 'currency', currency: APP_CONFIG.currency })
-const getMarketplaces = product => product.marketplaces?.length ? product.marketplaces : product.marketplaceUrl ? [{ name: product.marketplace || 'Marketplace', url: product.marketplaceUrl }] : []
-const EMPTY_MARKETPLACE_OPTIONS = [{ id: 'missing-marketplace', name: 'Nenhum marketplace cadastrado', unavailable: true }]
-const permissionName = session => session?.permission?.trim().toLocaleLowerCase('pt-BR') || ''
-const permissionAccess = session => {
-  const permission=permissionName(session)
+const categories = CATEGORY_LABELS;
+const emptyProduct = CATALOG_OPTIONS.productDefaults;
+const ADMIN_EMAIL = APP_CONFIG.adminAccountLabel;
+const money = (value) =>
+  Number(value).toLocaleString(APP_CONFIG.locale, {
+    style: "currency",
+    currency: APP_CONFIG.currency,
+  });
+const getMarketplaces = (product) =>
+  product.marketplaces?.length
+    ? product.marketplaces
+    : product.marketplaceUrl
+      ? [
+          {
+            name: product.marketplace || "Marketplace",
+            url: product.marketplaceUrl,
+          },
+        ]
+      : [];
+const EMPTY_MARKETPLACE_OPTIONS = [
+  {
+    id: "missing-marketplace",
+    name: "Nenhum marketplace cadastrado",
+    unavailable: true,
+  },
+];
+const permissionName = (session) =>
+  session?.permission?.trim().toLocaleLowerCase("pt-BR") || "";
+const permissionAccess = (session) => {
+  const permission = permissionName(session);
   return {
-    manageProducts: permission==='admin'||permission==='gestor',
-    manageCatalogOptions: permission==='admin',
-    viewUsers: permission==='admin'||permission==='gestor',
-    manageUsers: permission==='admin',
-  }
-}
+    manageProducts: permission === "admin" || permission === "gestor",
+    manageCatalogOptions: permission === "admin",
+    viewUsers: permission === "admin" || permission === "gestor",
+    manageUsers: permission === "admin",
+  };
+};
 
 function useSpaLocation() {
-  const [location, setLocation] = useState(() => ({ pathname: window.location.pathname, search: window.location.search }))
+  const [location, setLocation] = useState(() => ({
+    pathname: window.location.pathname,
+    search: window.location.search,
+  }));
   useEffect(() => {
-    const update = () => setLocation({ pathname: window.location.pathname, search: window.location.search })
+    const update = () =>
+      setLocation({
+        pathname: window.location.pathname,
+        search: window.location.search,
+      });
     const updateWithTransition = () => {
-      if (!document.startViewTransition) { update(); return }
-      document.startViewTransition(() => flushSync(update))
-    }
-    const navigate = event => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-      const anchor = event.target.closest?.('a[href]')
-      if (!anchor || anchor.hasAttribute('download')) return
-      const url = new URL(anchor.href, window.location.href)
-      if (url.origin !== window.location.origin || !['http:', 'https:'].includes(url.protocol)) return
-      if (url.searchParams.has('admin')) return
-      const samePageAnchor = url.pathname === window.location.pathname && url.search === window.location.search && url.hash
-      if (samePageAnchor) return
-      event.preventDefault()
-      const next = `${url.pathname}${url.search}${url.hash}`
-      if (next === `${window.location.pathname}${window.location.search}${window.location.hash}`) return
-      const commit = () => {
-        window.history.pushState({}, '', next)
-        flushSync(update)
-        if (!url.hash) window.scrollTo({ top: 0, behavior: 'instant' })
+      if (!document.startViewTransition) {
+        update();
+        return;
       }
-      if (document.startViewTransition) document.startViewTransition(commit)
-      else commit()
-    }
-    document.addEventListener('click', navigate)
-    window.addEventListener('popstate', updateWithTransition)
-    return () => { document.removeEventListener('click', navigate); window.removeEventListener('popstate', updateWithTransition) }
-  }, [])
+      document.startViewTransition(() => flushSync(update));
+    };
+    const navigate = (event) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      )
+        return;
+      const anchor = event.target.closest?.("a[href]");
+      if (!anchor || anchor.hasAttribute("download")) return;
+      const url = new URL(anchor.href, window.location.href);
+      if (
+        url.origin !== window.location.origin ||
+        !["http:", "https:"].includes(url.protocol)
+      )
+        return;
+      if (url.searchParams.has("admin")) return;
+      const samePageAnchor =
+        url.pathname === window.location.pathname &&
+        url.search === window.location.search &&
+        url.hash;
+      if (samePageAnchor) return;
+      event.preventDefault();
+      const next = `${url.pathname}${url.search}${url.hash}`;
+      if (
+        next ===
+        `${window.location.pathname}${window.location.search}${window.location.hash}`
+      )
+        return;
+      const commit = () => {
+        window.history.pushState({}, "", next);
+        flushSync(update);
+        if (!url.hash) window.scrollTo({ top: 0, behavior: "instant" });
+      };
+      if (document.startViewTransition) document.startViewTransition(commit);
+      else commit();
+    };
+    document.addEventListener("click", navigate);
+    window.addEventListener("popstate", updateWithTransition);
+    return () => {
+      document.removeEventListener("click", navigate);
+      window.removeEventListener("popstate", updateWithTransition);
+    };
+  }, []);
   useEffect(() => {
-    const root = document.getElementById('root')
-    root?.classList.remove('route-enter')
-    const frame = requestAnimationFrame(() => root?.classList.add('route-enter'))
-    const timer = setTimeout(() => root?.classList.remove('route-enter'), 420)
-    return () => { cancelAnimationFrame(frame); clearTimeout(timer) }
-  }, [location.pathname, location.search])
-  return location
+    const root = document.getElementById("root");
+    root?.classList.remove("route-enter");
+    const frame = requestAnimationFrame(() =>
+      root?.classList.add("route-enter"),
+    );
+    const timer = setTimeout(() => root?.classList.remove("route-enter"), 420);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  }, [location.pathname, location.search]);
+  return location;
 }
 
 function useProducts(mode) {
-  const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const reload = async () => {
-    if (!mode) { setProducts([]); setLoading(false); return [] }
-    setLoading(true); setError('')
-    try { const items=await catalogService.list({admin:mode==='admin'});items.forEach(item=>{if(item.category&&item.categoryName)categories[item.category]=item.categoryName});setProducts(items);return items }
-    catch (err) { setError(err.message); return [] }
-    finally { setLoading(false) }
-  }
-  useEffect(() => { reload() }, [mode])
-  const saveProduct = async product => { await catalogService.save(product);const items=await reload();return items.find(item=>item.id===product.id)||items[0] }
-  const toggleProduct = async id => { const current=products.find(item=>item.id===id);if(!current)return;await catalogService.save({...current,status:current.active?'draft':'published',active:!current.active});await reload() }
-  const removeProduct = async id => { await catalogService.remove(id);setProducts(items=>items.filter(item=>item.id!==id)) }
-  return { products, loading, error, reload, saveProduct, toggleProduct, removeProduct }
+    if (!mode) {
+      setProducts([]);
+      setLoading(false);
+      return [];
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const items = await catalogService.list({ admin: mode === "admin" });
+      items.forEach((item) => {
+        if (item.category && item.categoryName)
+          categories[item.category] = item.categoryName;
+      });
+      setProducts(items);
+      return items;
+    } catch (err) {
+      setError(err.message);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    reload();
+  }, [mode]);
+  const saveProduct = async (product) => {
+    await catalogService.save(product);
+    const items = await reload();
+    return items.find((item) => item.id === product.id) || items[0];
+  };
+  const toggleProduct = async (id) => {
+    const current = products.find((item) => item.id === id);
+    if (!current) return;
+    await catalogService.save({
+      ...current,
+      status: current.active ? "draft" : "published",
+      active: !current.active,
+    });
+    await reload();
+  };
+  const removeProduct = async (id) => {
+    await catalogService.remove(id);
+    setProducts((items) => items.filter((item) => item.id !== id));
+  };
+  return {
+    products,
+    loading,
+    error,
+    reload,
+    saveProduct,
+    toggleProduct,
+    removeProduct,
+  };
 }
 
 function useClicks() {
-  const [clicks, setClicks] = useState([])
-  useEffect(() => { analyticsService.listClicks().then(setClicks) }, [])
-  const recordClick = (product, listing) => { analyticsService.trackMarketplaceClick(product,listing).then(event=>setClicks(current=>[...current,event])).catch(()=>{}) }
-  return [clicks, recordClick]
+  const [clicks, setClicks] = useState([]);
+  useEffect(() => {
+    analyticsService.listClicks().then(setClicks);
+  }, []);
+  const recordClick = (product, listing) => {
+    analyticsService
+      .trackMarketplaceClick(product, listing)
+      .then((event) => setClicks((current) => [...current, event]))
+      .catch(() => {});
+  };
+  return [clicks, recordClick];
 }
 
 function useCatalogOptions(enabled) {
-  const [options, setOptions] = useState({ categories: [] })
+  const [options, setOptions] = useState({ categories: [] });
   const reload = async () => {
-    if (!enabled) return { categories: [] }
-    const [categoryResult]=await Promise.allSettled([catalogService.listCategories({admin:true})])
-    const allCategories=categoryResult.status==='fulfilled'?categoryResult.value:[]
-    const next={categories:allCategories.filter(category=>category.active!==false)}
-    setOptions(next)
-    return next
-  }
-  useEffect(() => { reload() }, [enabled])
-  return { ...options, reload }
+    if (!enabled) return { categories: [] };
+    const [categoryResult] = await Promise.allSettled([
+      catalogService.listCategories({ admin: true }),
+    ]);
+    const allCategories =
+      categoryResult.status === "fulfilled" ? categoryResult.value : [];
+    const next = {
+      categories: allCategories.filter((category) => category.active !== false),
+    };
+    setOptions(next);
+    return next;
+  };
+  useEffect(() => {
+    reload();
+  }, [enabled]);
+  return { ...options, reload };
 }
 
-const SearchIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
-const ExternalIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
-const PlusIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-const EditIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-.8 4 4-.8L18.4 8 16 5.6 4 16Z"/><path d="m14.5 7.2 2.4 2.4"/></svg>
-const TrashIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"/></svg>
+const SearchIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m16 16 4 4" />
+  </svg>
+);
+const ExternalIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M7 17 17 7M8 7h9v9" />
+  </svg>
+);
+const PlusIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+const EditIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="m4 16-.8 4 4-.8L18.4 8 16 5.6 4 16Z" />
+    <path d="m14.5 7.2 2.4 2.4" />
+  </svg>
+);
+const TrashIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13" />
+  </svg>
+);
 
 function Brand({ dark = false, large = false }) {
-  return <a className={`brand ${dark ? 'brand-dark' : ''} ${large ? 'brand-large' : ''}`} href="/" aria-label="Triso, página inicial"><span className="brand-mark" aria-hidden="true"><i/><i/><i/></span><span>TRISO<small>STUDIO</small></span></a>
+  return (
+    <a
+      className={`brand ${dark ? "brand-dark" : ""} ${large ? "brand-large" : ""}`}
+      href="/"
+      aria-label="Triso, página inicial"
+    >
+      <span className="brand-mark" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </span>
+      <span>
+        TRISO<small>STUDIO</small>
+      </span>
+    </a>
+  );
 }
 
 function AdminSidebar({ active, session, onLoggedOut }) {
-  const [leaving,setLeaving]=useState(false)
-  const logout=async()=>{if(leaving)return;setLeaving(true);try{await authService.logout()}finally{onLoggedOut()}}
-  const access=permissionAccess(session)
-  const links=[
-    {id:'dashboard',href:'/admin',icon:'⌁',label:'Dashboard'},
-    {id:'products',href:'/admin/produtos',icon:'▦',label:'Produtos'},
-    {id:'users',href:'/admin/usuarios',icon:'◎',label:'Usuários',visible:access.viewUsers},
-  ].filter(link=>link.visible!==false)
-  const initials=(session?.name||'Administrador').split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase()
-  return <aside className="admin-sidebar"><Brand/><nav><span>MENU PRINCIPAL</span>{links.map(link=><a key={link.id} className={active===link.id?'active':''} href={link.href} aria-current={active===link.id?'page':undefined}><i>{link.icon}</i>{link.label}</a>)}<a href="/" target="_blank"><i>↗</i> Ver loja</a></nav><div className="admin-user"><div>{initials}</div><span><b>{session?.name||'Administrador'}</b><small>{session?.email||ADMIN_EMAIL}</small></span><button onClick={logout} disabled={leaving} title="Sair">↪</button></div></aside>
+  const [leaving, setLeaving] = useState(false);
+  const logout = async () => {
+    if (leaving) return;
+    setLeaving(true);
+    try {
+      await authService.logout();
+    } finally {
+      onLoggedOut();
+    }
+  };
+  const access = permissionAccess(session);
+  const links = [
+    { id: "dashboard", href: "/admin", icon: "⌁", label: "Dashboard" },
+    { id: "products", href: "/admin/produtos", icon: "▦", label: "Produtos" },
+    {
+      id: "users",
+      href: "/admin/usuarios",
+      icon: "◎",
+      label: "Usuários",
+      visible: access.viewUsers,
+    },
+  ].filter((link) => link.visible !== false);
+  const initials = (session?.name || "Administrador")
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+  return (
+    <aside className="admin-sidebar">
+      <Brand />
+      <nav>
+        <span>MENU PRINCIPAL</span>
+        {links.map((link) => (
+          <a
+            key={link.id}
+            className={active === link.id ? "active" : ""}
+            href={link.href}
+            aria-current={active === link.id ? "page" : undefined}
+          >
+            <i>{link.icon}</i>
+            {link.label}
+          </a>
+        ))}
+        <a href="/" target="_blank">
+          <i>↗</i> Ver loja
+        </a>
+      </nav>
+      <div className="admin-user">
+        <div>{initials}</div>
+        <span>
+          <b>{session?.name || "Administrador"}</b>
+          <small>{session?.email || ADMIN_EMAIL}</small>
+        </span>
+        <button onClick={logout} disabled={leaving} title="Sair">
+          ↪
+        </button>
+      </div>
+    </aside>
+  );
 }
 
-function ProductShape({ type }) { return <div className={`product-shape shape-${type || 'vase'}`}><i/><i/><i/></div> }
+function ProductShape({ type }) {
+  return (
+    <div className={`product-shape shape-${type || "vase"}`}>
+      <i />
+      <i />
+      <i />
+    </div>
+  );
+}
 
 function ProductVisual({ product, small = false, imageUrl }) {
-  const displayImage=imageUrl||product.images?.[0]?.url||product.imageUrl
-  return <div className={small ? 'admin-product-thumb' : 'product-art'}>
-    {displayImage ? <img src={displayImage} alt={product.name}/> : <ProductShape type={product.art}/>} 
-    {!small && product.badge && <span className="product-badge">{product.badge}</span>}
-  </div>
-}
-
-function Header() {
-  const { totalQuantity } = useCart()
-  const { user, isLoadingSession, isCustomer, hasAdminAccess } = useAuth()
-  const [menu, setMenu] = useState(false)
-  const [sticky, setSticky] = useState(false)
-  useEffect(() => { const scroll = () => setSticky(window.scrollY > 70); window.addEventListener('scroll', scroll, { passive: true }); return () => window.removeEventListener('scroll', scroll) }, [])
-  const accountLink=!user?'/entrar':isCustomer?'/minha-conta':hasAdminAccess?'/admin':'/entrar'
-  const accountLabel=!user?'Entrar':isCustomer?'Minha conta':hasAdminAccess?'Área administrativa':'Entrar'
-  const accountNavigation=isLoadingSession?<span className="header-account-skeleton" aria-label="Carregando sessão"/>:<a className="admin-entry" href={accountLink}>{accountLabel}</a>
-  const mobileAccountNavigation=isLoadingSession?<span className="header-account-skeleton" aria-label="Carregando sessão"/>:<a href={accountLink}>{accountLabel}</a>
-  return <header className={`header ${sticky ? 'sticky' : ''}`}><div className="container header-inner"><Brand/><nav className="desktop-nav"><a href="#loja">Produtos</a><a href="#colecoes">Coleções</a><a href="#sobre">Sobre</a></nav><div className="header-actions"><a className="cart-button" href="/carrinho">Carrinho <b>{totalQuantity}</b></a>{accountNavigation}<button className="menu-button" onClick={() => setMenu(!menu)} aria-label="Abrir menu" aria-expanded={menu}><i/><i/></button></div></div><div className={`mobile-menu ${menu ? 'open' : ''}`} aria-hidden={!menu}>{['Produtos','Coleções','Sobre'].map((item,i)=><a key={item} href={['#loja','#colecoes','#sobre'][i]} onClick={()=>setMenu(false)}>{item}</a>)}<a href="/carrinho">Carrinho ({totalQuantity})</a>{mobileAccountNavigation}</div></header>
+  const displayImage = imageUrl || product.images?.[0]?.url || product.imageUrl;
+  return (
+    <div className={small ? "admin-product-thumb" : "product-art"}>
+      {displayImage ? (
+        <img src={displayImage} alt={product.name} />
+      ) : (
+        <ProductShape type={product.art} />
+      )}
+      {!small && product.badge && (
+        <span className="product-badge">{product.badge}</span>
+      )}
+    </div>
+  );
 }
 
 function Hero({ products, loading }) {
-  const [layer, setLayer] = useState(1)
-  const featuredProduct = useMemo(() => products.find(product => product.active) || null, [products])
-  const printedItemRef=useRef(null),scanRef=useRef(null),shadowRef=useRef(null)
-  const featuredImage=featuredProduct?.images?.[0]?.url||featuredProduct?.imageUrl||''
+  const [layer, setLayer] = useState(1);
+  const featuredProduct = useMemo(
+    () => products.find((product) => product.active) || null,
+    [products],
+  );
+  const printedItemRef = useRef(null),
+    scanRef = useRef(null),
+    shadowRef = useRef(null);
+  const featuredImage =
+    featuredProduct?.images?.[0]?.url || featuredProduct?.imageUrl || "";
   useEffect(() => {
-    if(!featuredProduct){setLayer(1);return}
-    let frame,lastFrame=performance.now()
-    const updateLayer=now=>{const elapsed=now-lastFrame;if(elapsed>=180){const steps=Math.floor(elapsed/180);setLayer(value=>(value-1+steps)%240+1);lastFrame+=steps*180}frame=requestAnimationFrame(updateLayer)}
-    frame=requestAnimationFrame(updateLayer)
-    return()=>cancelAnimationFrame(frame)
-  }, [featuredProduct?.id])
+    if (!featuredProduct) {
+      setLayer(1);
+      return;
+    }
+    let frame,
+      lastFrame = performance.now();
+    const updateLayer = (now) => {
+      const elapsed = now - lastFrame;
+      if (elapsed >= 180) {
+        const steps = Math.floor(elapsed / 180);
+        setLayer((value) => ((value - 1 + steps) % 240) + 1);
+        lastFrame += steps * 180;
+      }
+      frame = requestAnimationFrame(updateLayer);
+    };
+    frame = requestAnimationFrame(updateLayer);
+    return () => cancelAnimationFrame(frame);
+  }, [featuredProduct?.id]);
   useEffect(() => {
-    const item=printedItemRef.current,scan=scanRef.current,shadow=shadowRef.current
-    if(!featuredProduct||!item||!scan||!shadow)return
-    const reduceMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    const distance=reduceMotion?2:10
-    const printTimeline=anime.timeline({loop:true,direction:'alternate',easing:'easeInOutSine'})
-      .add({targets:item,translateY:[-distance,distance*.7],rotate:[reduceMotion?0:-.65,reduceMotion?0:.65],scale:[1,reduceMotion?1.004:1.018],duration:reduceMotion?3200:2100},0)
-      .add({targets:shadow,scaleX:[1.08,.88],opacity:[.7,.46],duration:reduceMotion?3200:2100},0)
-    const scanAnimation=anime({targets:scan,keyframes:[{translateY:-155,opacity:0,duration:0},{opacity:1,duration:450},{translateY:155,duration:3000},{opacity:0,duration:650}],duration:4100,easing:'cubicBezier(.45,.05,.2,1)',loop:true})
-    return()=>{printTimeline.pause();scanAnimation.pause();anime.remove([item,scan,shadow])}
-  }, [featuredProduct?.id,featuredImage])
-  const progress = `${layer / 240 * 100}%`
-  const statusLabel=loading?'Carregando catálogo':featuredProduct?'Em impressão agora':'Catálogo em atualização'
-  const productLabel=loading?'Preparando destaque':featuredProduct?.name||'Novidades em breve'
-  return <section className="hero" id="inicio"><div className="hero-grid"/><div className="hero-glow hero-glow-a"/><div className="hero-glow hero-glow-b"/><div className="container hero-layout"><div className="hero-copy"><div className="kicker"><span>Nova coleção</span> Forma 01 — 2026</div><h1>Design que ganha<br/><em>forma.</em> Camada<br/>por camada.</h1><p>Objetos autorais para casa, setup e rotina. Escolha seu produto e compre com segurança no seu marketplace preferido.</p><div className="hero-actions"><a className="button button-primary" href="#loja">Ver produtos <span>↘</span></a></div><div className="hero-notes"><span><b>01</b> PLA premium</span><span><b>02</b> Feito no Brasil</span><span><b>03</b> Compra segura</span></div></div><div className={`hero-stage ${loading?'is-loading':''}`}><div className="stage-label"><i/> {statusLabel}</div><div className="orbit-art printing-art">{featuredProduct?<div className="printed-item" ref={printedItemRef}>{featuredImage?<img src={featuredImage} alt={featuredProduct.name} loading="eager" decoding="async" fetchPriority="high"/>:<ProductShape type={featuredProduct.art}/>}</div>:<div className="printing-placeholder"/>}<div className="orbit-shadow" ref={shadowRef}/>{featuredProduct&&<div className="print-layer" ref={scanRef}/>}</div><div className="stage-meta"><div><small>PRODUTO / {featuredProduct ? String(featuredProduct.id).slice(-3).padStart(3, '0') : '---'}</small><strong>{productLabel}</strong></div><div className="stage-price"><small>{featuredProduct?'A partir de':'Catálogo'}</small><strong>{featuredProduct ? money(featuredProduct.price) : '—'}</strong></div></div><div className="stage-progress"><span style={{ width: featuredProduct ? progress : '0%' }}/></div><div className="stage-readout"><span>{featuredProduct?<>CAMADA <b>{layer}</b>/240</>:'AGUARDANDO PRODUTO'}</span><span>{featuredProduct?'0.20 MM · PLA':'TRISO STUDIO'}</span></div></div></div></section>
+    const item = printedItemRef.current,
+      scan = scanRef.current,
+      shadow = shadowRef.current;
+    if (!featuredProduct || !item || !scan || !shadow) return;
+    const reduceMotion = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const distance = reduceMotion ? 2 : 10;
+    const printTimeline = anime
+      .timeline({ loop: true, direction: "alternate", easing: "easeInOutSine" })
+      .add(
+        {
+          targets: item,
+          translateY: [-distance, distance * 0.7],
+          rotate: [reduceMotion ? 0 : -0.65, reduceMotion ? 0 : 0.65],
+          scale: [1, reduceMotion ? 1.004 : 1.018],
+          duration: reduceMotion ? 3200 : 2100,
+        },
+        0,
+      )
+      .add(
+        {
+          targets: shadow,
+          scaleX: [1.08, 0.88],
+          opacity: [0.7, 0.46],
+          duration: reduceMotion ? 3200 : 2100,
+        },
+        0,
+      );
+    const scanAnimation = anime({
+      targets: scan,
+      keyframes: [
+        { translateY: -155, opacity: 0, duration: 0 },
+        { opacity: 1, duration: 450 },
+        { translateY: 155, duration: 3000 },
+        { opacity: 0, duration: 650 },
+      ],
+      duration: 4100,
+      easing: "cubicBezier(.45,.05,.2,1)",
+      loop: true,
+    });
+    return () => {
+      printTimeline.pause();
+      scanAnimation.pause();
+      anime.remove([item, scan, shadow]);
+    };
+  }, [featuredProduct?.id, featuredImage]);
+  const progress = `${(layer / 240) * 100}%`;
+  const statusLabel = loading
+    ? "Carregando catálogo"
+    : featuredProduct
+      ? "Em impressão agora"
+      : "Catálogo em atualização";
+  const productLabel = loading
+    ? "Preparando destaque"
+    : featuredProduct?.name || "Novidades em breve";
+  return (
+    <section className="hero" id="inicio">
+      <div className="hero-grid" />
+      <div className="hero-glow hero-glow-a" />
+      <div className="hero-glow hero-glow-b" />
+      <div className="container hero-layout">
+        <div className="hero-copy">
+          <div className="kicker">
+            <span>Nova coleção</span> Forma 01 — 2026
+          </div>
+          <h1>
+            Design que ganha
+            <br />
+            <em>forma.</em> Camada
+            <br />
+            por camada.
+          </h1>
+          <p>
+            Objetos autorais para casa, setup e rotina. Escolha seu produto e
+            compre com segurança no seu marketplace preferido.
+          </p>
+          <div className="hero-actions">
+            <a className="button button-primary" href="#loja">
+              Ver produtos <span>↘</span>
+            </a>
+          </div>
+          <div className="hero-notes">
+            <span>
+              <b>01</b> PLA premium
+            </span>
+            <span>
+              <b>02</b> Feito no Brasil
+            </span>
+            <span>
+              <b>03</b> Compra segura
+            </span>
+          </div>
+        </div>
+        <div className={`hero-stage ${loading ? "is-loading" : ""}`}>
+          <div className="stage-label">
+            <i /> {statusLabel}
+          </div>
+          <div className="orbit-art printing-art">
+            {featuredProduct ? (
+              <div className="printed-item" ref={printedItemRef}>
+                {featuredImage ? (
+                  <img
+                    src={featuredImage}
+                    alt={featuredProduct.name}
+                    loading="eager"
+                    decoding="async"
+                    fetchPriority="high"
+                  />
+                ) : (
+                  <ProductShape type={featuredProduct.art} />
+                )}
+              </div>
+            ) : (
+              <div className="printing-placeholder" />
+            )}
+            <div className="orbit-shadow" ref={shadowRef} />
+            {featuredProduct && <div className="print-layer" ref={scanRef} />}
+          </div>
+          <div className="stage-meta">
+            <div>
+              <small>
+                PRODUTO /{" "}
+                {featuredProduct
+                  ? String(featuredProduct.id).slice(-3).padStart(3, "0")
+                  : "---"}
+              </small>
+              <strong>{productLabel}</strong>
+            </div>
+            <div className="stage-price">
+              <small>{featuredProduct ? "A partir de" : "Catálogo"}</small>
+              <strong>
+                {featuredProduct ? money(featuredProduct.price) : "—"}
+              </strong>
+            </div>
+          </div>
+          <div className="stage-progress">
+            <span style={{ width: featuredProduct ? progress : "0%" }} />
+          </div>
+          <div className="stage-readout">
+            <span>
+              {featuredProduct ? (
+                <>
+                  CAMADA <b>{layer}</b>/240
+                </>
+              ) : (
+                "AGUARDANDO PRODUTO"
+              )}
+            </span>
+            <span>{featuredProduct ? "0.20 MM · PLA" : "TRISO STUDIO"}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function Collections({ setFilter }) {
-  const choose = category => () => setFilter(category)
-  return <section className="collections section" id="colecoes"><div className="container"><div className="section-heading"><div><h2>Feito para o seu espaço.</h2></div><p>Peças funcionais com presença escultórica, criadas para transformar os pequenos rituais do dia.</p></div><div className="collection-grid"><a className="collection-card collection-card-large" href="#loja" onClick={choose('decoracao')}><div className="collection-visual visual-vase"><div className="vase-body"/><div className="vase-body vase-back"/></div><CollectionInfo code="01">Casa &<br/>Decoração</CollectionInfo></a><a className="collection-card" href="#loja" onClick={choose('setup')}><div className="collection-visual visual-stand"><div className="stand-top"/><div className="stand-leg"/><div className="stand-phone"/></div><CollectionInfo code="02">Setup &<br/>Office</CollectionInfo></a><a className="collection-card" href="#loja" onClick={choose('organizacao')}><div className="collection-visual visual-tray"><div/><div/><div/></div><CollectionInfo code="03">Organização</CollectionInfo></a></div></div></section>
+  const choose = (category) => () => setFilter(category);
+  return (
+    <section className="collections section" id="colecoes">
+      <div className="container">
+        <div className="section-heading">
+          <div>
+            <h2>Feito para o seu espaço.</h2>
+          </div>
+          <p>
+            Peças funcionais com presença escultórica, criadas para transformar
+            os pequenos rituais do dia.
+          </p>
+        </div>
+        <div className="collection-grid">
+          <a
+            className="collection-card collection-card-large"
+            href="#loja"
+            onClick={choose("decoracao")}
+          >
+            <div className="collection-visual visual-vase">
+              <div className="vase-body" />
+              <div className="vase-body vase-back" />
+            </div>
+            <CollectionInfo code="01">
+              Casa &<br />
+              Decoração
+            </CollectionInfo>
+          </a>
+          <a className="collection-card" href="#loja" onClick={choose("setup")}>
+            <div className="collection-visual visual-stand">
+              <div className="stand-top" />
+              <div className="stand-leg" />
+              <div className="stand-phone" />
+            </div>
+            <CollectionInfo code="02">
+              Setup &<br />
+              Office
+            </CollectionInfo>
+          </a>
+          <a
+            className="collection-card"
+            href="#loja"
+            onClick={choose("organizacao")}
+          >
+            <div className="collection-visual visual-tray">
+              <div />
+              <div />
+              <div />
+            </div>
+            <CollectionInfo code="03">Organização</CollectionInfo>
+          </a>
+        </div>
+      </div>
+    </section>
+  );
 }
-function CollectionInfo({ code, children }) { return <div className="collection-info"><span>{code} — Coleção</span><h3>{children}</h3><b>Explorar <i>↗</i></b></div> }
+function CollectionInfo({ code, children }) {
+  return (
+    <div className="collection-info">
+      <span>{code} — Coleção</span>
+      <h3>{children}</h3>
+      <b>
+        Explorar <i>↗</i>
+      </b>
+    </div>
+  );
+}
 
 function ProductCard({ product, onOpen, onAdd }) {
-  const { add } = useCart()
-  const listings = getMarketplaces(product)
-  return <article className="product-card product-card-clickable" onClick={() => onOpen(product)}><ProductVisual product={product}/><div className="product-info"><span className="product-overline">{product.categoryName || categories[product.category] || 'Outros'}</span><div className="product-title-row"><h3>{product.name}</h3><strong>{money(product.price)}</strong></div><p>{product.description}</p><button className="add-button" type="button" onClick={event=>{event.preventDefault();event.stopPropagation();add(product.id)}}><b>+</b> Adicionar ao carrinho</button></div></article>
+  const { add } = useCart();
+  const listings = getMarketplaces(product);
+  return (
+    <article
+      className="product-card product-card-clickable"
+      onClick={() => onOpen(product)}
+    >
+      <ProductVisual product={product} />
+      <div className="product-info">
+        <span className="product-overline">
+          {product.categoryName || categories[product.category] || "Outros"}
+        </span>
+        <div className="product-title-row">
+          <h3>{product.name}</h3>
+          <strong>{money(product.price)}</strong>
+        </div>
+        <p>{product.description}</p>
+        
+      </div>
+    </article>
+  );
 }
 
-function Shop({ products, filter, setFilter, onOpen, onAdd, error, loading, onRetry }) {
-  const [query, setQuery] = useState('')
-  const [sort, setSort] = useState('featured')
-  const visible = useMemo(() => { const q=query.trim().toLocaleLowerCase('pt-BR'); const list=products.filter(p=>p.active&&(filter==='todos'||p.category===filter)&&`${p.name} ${p.description} ${getMarketplaces(p).map(m=>m.name).join(' ')}`.toLocaleLowerCase('pt-BR').includes(q)); if(sort==='low')list.sort((a,b)=>a.price-b.price);if(sort==='high')list.sort((a,b)=>b.price-a.price);if(sort==='name')list.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));return list },[products,filter,query,sort])
-  const filterItems=useMemo(()=>[['todos','Todos'],...Array.from(new Map(products.filter(p=>p.category).map(p=>[p.category,p.categoryName||categories[p.category]||p.category])).entries())],[products])
-  return <section className="shop section" id="loja"><div className="container"><div className="shop-top"><div><span className="eyebrow">Catálogo online</span><h2>Escolhas da Triso.</h2></div><div className="shop-actions"><label className="search-box"><SearchIcon/><input value={query} onChange={e=>setQuery(e.target.value)} type="search" placeholder="Buscar no catálogo..."/></label><label className="sort-box"><select value={sort} onChange={e=>setSort(e.target.value)}><option value="featured">Em destaque</option><option value="low">Menor preço</option><option value="high">Maior preço</option><option value="name">Nome A–Z</option></select></label></div></div><div className="filter-row">{filterItems.map(([value,label])=><button key={value} className={`filter ${filter===value?'active':''}`} onClick={()=>setFilter(value)}>{label} <span>{products.filter(p=>p.active&&(value==='todos'||p.category===value)).length.toString().padStart(2,'0')}</span></button>)}</div>{error?<div className="empty-state"><p>Não foi possível carregar os produtos. {error}</p><button className="admin-primary" type="button" onClick={onRetry}>Tentar novamente</button></div>:loading?<p className="empty-state">Carregando produtos...</p>:visible.length?<div className="product-grid">{visible.map(product=><ProductCard key={product.id} product={product} onOpen={onOpen}/>)}</div>:<p className="empty-state">Nenhum produto encontrado nesta categoria.</p>}</div></section>
+function Shop({
+  products,
+  filter,
+  setFilter,
+  onOpen,
+  onAdd,
+  error,
+  loading,
+  onRetry,
+}) {
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState("featured");
+  const visible = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase("pt-BR");
+    const list = products.filter(
+      (p) =>
+        p.active &&
+        (filter === "todos" || p.category === filter) &&
+        `${p.name} ${p.description} ${getMarketplaces(p)
+          .map((m) => m.name)
+          .join(" ")}`
+          .toLocaleLowerCase("pt-BR")
+          .includes(q),
+    );
+    if (sort === "low") list.sort((a, b) => a.price - b.price);
+    if (sort === "high") list.sort((a, b) => b.price - a.price);
+    if (sort === "name")
+      list.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    return list;
+  }, [products, filter, query, sort]);
+  const filterItems = useMemo(
+    () => [
+      ["todos", "Todos"],
+      ...Array.from(
+        new Map(
+          products
+            .filter((p) => p.category)
+            .map((p) => [
+              p.category,
+              p.categoryName || categories[p.category] || p.category,
+            ]),
+        ).entries(),
+      ),
+    ],
+    [products],
+  );
+  return (
+    <section className="shop section" id="loja">
+      <div className="container">
+        <div className="shop-top">
+          <div>
+            <span className="eyebrow">Catálogo online</span>
+            <h2>Escolhas da Triso.</h2>
+          </div>
+          <div className="shop-actions">
+            <label className="search-box">
+              <SearchIcon />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                type="search"
+                placeholder="Buscar no catálogo..."
+              />
+            </label>
+            <label className="sort-box">
+              <select value={sort} onChange={(e) => setSort(e.target.value)}>
+                <option value="featured">Em destaque</option>
+                <option value="low">Menor preço</option>
+                <option value="high">Maior preço</option>
+                <option value="name">Nome A–Z</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div className="filter-row">
+          {filterItems.map(([value, label]) => (
+            <button
+              key={value}
+              className={`filter ${filter === value ? "active" : ""}`}
+              onClick={() => setFilter(value)}
+            >
+              {label}{" "}
+              <span>
+                {products
+                  .filter(
+                    (p) =>
+                      p.active && (value === "todos" || p.category === value),
+                  )
+                  .length.toString()
+                  .padStart(2, "0")}
+              </span>
+            </button>
+          ))}
+        </div>
+        {error ? (
+          <div className="empty-state">
+            <p>Não foi possível carregar os produtos. {error}</p>
+            <button className="admin-primary" type="button" onClick={onRetry}>
+              Tentar novamente
+            </button>
+          </div>
+        ) : loading ? (
+          <p className="empty-state">Carregando produtos...</p>
+        ) : visible.length ? (
+          <div className="product-grid">
+            {visible.map((product) => (
+              <ProductCard key={product.id} product={product} onOpen={onOpen} />
+            ))}
+          </div>
+        ) : (
+          <p className="empty-state">
+            Nenhum produto encontrado nesta categoria.
+          </p>
+        )}
+      </div>
+    </section>
+  );
 }
 
 function ProductDetail({ product, onClose, onMarketplaceClick }) {
-  const { add } = useCart()
-  const listings = getMarketplaces(product)
-  const images=(product.images||[]).filter(image=>image.url)
-  const [selectedIndex,setSelectedIndex]=useState(0)
-  const touchStart=useRef(null)
-  const selectedImage=images[selectedIndex]?.url||product.imageUrl||''
-  const go=direction=>setSelectedIndex(current=>images.length?(current+direction+images.length)%images.length:0)
-  useEffect(()=>setSelectedIndex(0),[product.id])
-  useEffect(() => { document.body.classList.add('locked'); const navigate = e => { if(e.key==='Escape')onClose();if(images.length>1&&e.key==='ArrowLeft')go(-1);if(images.length>1&&e.key==='ArrowRight')go(1) }; document.addEventListener('keydown', navigate); return () => { document.body.classList.remove('locked'); document.removeEventListener('keydown', navigate) } }, [onClose,images.length])
-  const beginSwipe=event=>{touchStart.current=event.changedTouches[0].clientX}
-  const endSwipe=event=>{if(touchStart.current===null||images.length<2)return;const distance=touchStart.current-event.changedTouches[0].clientX;touchStart.current=null;if(Math.abs(distance)>45)go(distance>0?1:-1)}
-  return <div className="product-detail-backdrop" onMouseDown={e => e.target === e.currentTarget && onClose()}><article className="product-detail"><button className="product-detail-close" onClick={onClose} aria-label="Fechar produto">×</button><div className="detail-gallery" onTouchStart={beginSwipe} onTouchEnd={endSwipe}><div className="detail-slide" key={selectedImage}><ProductVisual product={product} imageUrl={selectedImage}/></div>{images.length>1&&<><div className="detail-carousel-controls"><button type="button" onClick={()=>go(-1)} aria-label="Imagem anterior">←</button><span aria-live="polite">{selectedIndex+1} / {images.length}</span><button type="button" onClick={()=>go(1)} aria-label="Próxima imagem">→</button></div><div className="detail-thumbnails">{images.map((image,index)=><button type="button" className={selectedIndex===index?'active':''} key={image.id||image.url||index} onClick={()=>setSelectedIndex(index)} aria-label={`Ver imagem ${index+1}`}><img src={image.url} alt={image.altText||`${product.name} — imagem ${index+1}`}/></button>)}</div></>}<div className="detail-index"><span>TRISO / PRODUTO</span><b>#{String(product.id).slice(-5)}</b></div></div><div className="detail-copy"><span className="eyebrow">{categories[product.category] || 'Outros'}</span><h1>{product.name}</h1><p className="detail-description">{product.description}</p><div className="detail-price"><small>A partir de</small><strong>{money(product.price)}</strong></div><div className="detail-specs"><div><span>Material</span><b>PLA Premium</b></div><div><span>Produção</span><b>Sob demanda</b></div><div><span>Origem</span><b>São Paulo, BR</b></div></div><div className="detail-buy-actions"><button type="button" className="button button-primary" onClick={()=>add(product.id)}>Adicionar ao carrinho</button><button type="button" className="button button-light" onClick={()=>{add(product.id);window.history.pushState({},'', '/carrinho');window.dispatchEvent(new PopStateEvent('popstate'))}}>Comprar agora</button></div><div className="detail-safe"><span>✓</span><p><b>Compra segura pela Triso</b><small>Pagamento e acompanhamento do pedido acontecem diretamente aqui.</small></p></div></div></article></div>
+  const { add } = useCart();
+  const listings = getMarketplaces(product);
+  const images = (product.images || []).filter((image) => image.url);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const touchStart = useRef(null);
+  const selectedImage = images[selectedIndex]?.url || product.imageUrl || "";
+  const go = (direction) =>
+    setSelectedIndex((current) =>
+      images.length ? (current + direction + images.length) % images.length : 0,
+    );
+  useEffect(() => setSelectedIndex(0), [product.id]);
+  useEffect(() => {
+    document.body.classList.add("locked");
+    const navigate = (e) => {
+      if (e.key === "Escape") onClose();
+      if (images.length > 1 && e.key === "ArrowLeft") go(-1);
+      if (images.length > 1 && e.key === "ArrowRight") go(1);
+    };
+    document.addEventListener("keydown", navigate);
+    return () => {
+      document.body.classList.remove("locked");
+      document.removeEventListener("keydown", navigate);
+    };
+  }, [onClose, images.length]);
+  const beginSwipe = (event) => {
+    touchStart.current = event.changedTouches[0].clientX;
+  };
+  const endSwipe = (event) => {
+    if (touchStart.current === null || images.length < 2) return;
+    const distance = touchStart.current - event.changedTouches[0].clientX;
+    touchStart.current = null;
+    if (Math.abs(distance) > 45) go(distance > 0 ? 1 : -1);
+  };
+  return (
+    <div
+      className="product-detail-backdrop"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <article className="product-detail">
+        <button
+          className="product-detail-close"
+          onClick={onClose}
+          aria-label="Fechar produto"
+        >
+          ×
+        </button>
+        <div
+          className="detail-gallery"
+          onTouchStart={beginSwipe}
+          onTouchEnd={endSwipe}
+        >
+          <div className="detail-slide" key={selectedImage}>
+            <ProductVisual product={product} imageUrl={selectedImage} />
+          </div>
+          {images.length > 1 && (
+            <>
+              <div className="detail-carousel-controls">
+                <button
+                  type="button"
+                  onClick={() => go(-1)}
+                  aria-label="Imagem anterior"
+                >
+                  ←
+                </button>
+                <span aria-live="polite">
+                  {selectedIndex + 1} / {images.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => go(1)}
+                  aria-label="Próxima imagem"
+                >
+                  →
+                </button>
+              </div>
+              <div className="detail-thumbnails">
+                {images.map((image, index) => (
+                  <button
+                    type="button"
+                    className={selectedIndex === index ? "active" : ""}
+                    key={image.id || image.url || index}
+                    onClick={() => setSelectedIndex(index)}
+                    aria-label={`Ver imagem ${index + 1}`}
+                  >
+                    <img
+                      src={image.url}
+                      alt={
+                        image.altText || `${product.name} — imagem ${index + 1}`
+                      }
+                    />
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <div className="detail-index">
+            <span>TRISO / PRODUTO</span>
+            <b>#{String(product.id).slice(-5)}</b>
+          </div>
+        </div>
+        <div className="detail-copy">
+          <span className="eyebrow">
+            {categories[product.category] || "Outros"}
+          </span>
+          <h1>{product.name}</h1>
+          <p className="detail-description">{product.description}</p>
+          <div className="detail-price">
+            <small>A partir de</small>
+            <strong>{money(product.price)}</strong>
+          </div>
+          <div className="detail-specs">
+            <div>
+              <span>Material</span>
+              <b>PLA Premium</b>
+            </div>
+            <div>
+              <span>Produção</span>
+              <b>Sob demanda</b>
+            </div>
+            <div>
+              <span>Origem</span>
+              <b>São Paulo, BR</b>
+            </div>
+          </div>
+          <div className="detail-buy-actions">
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => add(product.id)}
+            >
+              Adicionar ao carrinho
+            </button>
+            <button
+              type="button"
+              className="button button-light"
+              onClick={() => {
+                add(product.id);
+                window.history.pushState({}, "", "/carrinho");
+                window.dispatchEvent(new PopStateEvent("popstate"));
+              }}
+            >
+              Comprar agora
+            </button>
+          </div>
+          <div className="detail-safe">
+            <span>✓</span>
+            <p>
+              <b>Compra segura pela Triso</b>
+              <small>
+                Pagamento e acompanhamento do pedido acontecem diretamente aqui.
+              </small>
+            </p>
+          </div>
+        </div>
+      </article>
+    </div>
+  );
 }
 
-function Manifesto() { return <section className="manifesto"><div className="container manifesto-grid"><div className="manifesto-art"><div className="wire-sphere"><i/><i/><i/><i/></div><span className="axis axis-x">X</span><span className="axis axis-y">Y</span><span className="axis axis-z">Z</span><span className="dimension dim-a">Ø 180 MM</span><span className="dimension dim-b">240 CAMADAS</span></div><div className="manifesto-copy" id="sobre"><span className="eyebrow">Por que a Triso?</span><h2>Menos estoque.<br/>Mais intenção.</h2><p>Não fazemos objetos para preencher prateleiras. Criamos peças que resolvem, organizam e expressam — produzidas apenas quando você escolhe.</p><div className="manifesto-points"><div><b>98%</b><span>do material pode ser reaproveitado</span></div><div><b>0</b><span>estoque produzido sem necessidade</span></div><div><b>1:1</b><span>cuidado em cada peça impressa</span></div></div></div></div></section> }
-function Footer() { return <footer className="footer"><div className="container"><div className="footer-main"><Brand large/><p>Objetos autorais produzidos<br/>camada por camada em São Paulo.</p><div className="footer-links"><div><b>Loja</b><a href="#loja">Todos os produtos</a><a href="#colecoes">Coleções</a></div><div><b>Ajuda</b><a href="mailto:contato@trisostudio.com.br">Contato</a><a href="#inicio">Envios e prazos</a></div><div><b>Conta</b><a href="/minha-conta">Minha conta →</a></div></div></div><div className="footer-bottom"><span>© 2026 Triso Studio</span><span>Design local · Produção consciente</span></div></div></footer> }
+function Manifesto() {
+  return (
+    <section className="manifesto">
+      <div className="container manifesto-grid">
+        <div className="manifesto-art">
+          <div className="wire-sphere">
+            <i />
+            <i />
+            <i />
+            <i />
+          </div>
+          <span className="axis axis-x">X</span>
+          <span className="axis axis-y">Y</span>
+          <span className="axis axis-z">Z</span>
+          <span className="dimension dim-a">Ø 180 MM</span>
+          <span className="dimension dim-b">240 CAMADAS</span>
+        </div>
+        <div className="manifesto-copy" id="sobre">
+          <span className="eyebrow">Por que a Triso?</span>
+          <h2>
+            Menos estoque.
+            <br />
+            Mais intenção.
+          </h2>
+          <p>
+            Não fazemos objetos para preencher prateleiras. Criamos peças que
+            resolvem, organizam e expressam — produzidas apenas quando você
+            escolhe.
+          </p>
+          <div className="manifesto-points">
+            <div>
+              <b>98%</b>
+              <span>do material pode ser reaproveitado</span>
+            </div>
+            <div>
+              <b>0</b>
+              <span>estoque produzido sem necessidade</span>
+            </div>
+            <div>
+              <b>1:1</b>
+              <span>cuidado em cada peça impressa</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+function Footer() {
+  return (
+    <footer className="footer">
+      <div className="container">
+        <div className="footer-main">
+          <Brand large />
+          <p>
+            Objetos autorais produzidos
+            <br />
+            camada por camada em São Paulo.
+          </p>
+          <div className="footer-links">
+            <div>
+              <b>Loja</b>
+              <a href="#loja">Todos os produtos</a>
+              <a href="#colecoes">Coleções</a>
+            </div>
+            <div>
+              <b>Ajuda</b>
+              <a href="mailto:contato@trisostudio.com.br">Contato</a>
+              <a href="#inicio">Envios e prazos</a>
+            </div>
+            <div>
+              <b>Conta</b>
+              <a href="/minha-conta">Minha conta →</a>
+            </div>
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <span>© 2026 Triso Studio</span>
+          <span>Design local · Produção consciente</span>
+        </div>
+      </div>
+    </footer>
+  );
+}
 
-function PublicStore({ products, recordClick, productError, productsLoading, onRetryProducts }) {
-  const { add } = useCart()
-  const [filter,setFilter]=useState('todos')
-  const [selected,setSelected]=useState(null)
-  const openProduct=async product=>{setSelected(product);if(!product.slug)return;try{const detail=await catalogService.getBySlug(product.slug);setSelected(current=>current?.slug===product.slug?detail:current)}catch{/* mantém os dados da listagem caso o detalhe não esteja disponível */}}
-  useEffect(()=>{
-    const elements=document.querySelectorAll('.hero-copy > *, .hero-stage, .section-heading > *, .collection-card, .shop-top > *, .filter-row, .product-card, .manifesto-art, .manifesto-copy > *, .footer-main > *')
-    elements.forEach((element,index)=>{element.classList.add('reveal');element.style.setProperty('--reveal-delay',`${Math.min(index%6,5)*55}ms`)})
-    let observer,firstFrame,secondFrame
-    firstFrame=requestAnimationFrame(()=>{secondFrame=requestAnimationFrame(()=>{
-      if(!('IntersectionObserver' in window)){elements.forEach(element=>element.classList.add('in-view'));return}
-      observer=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('in-view');observer.unobserve(entry.target)}}),{threshold:.08,rootMargin:'0px 0px -20px'})
-      elements.forEach(element=>observer.observe(element))
-    })})
-    return()=>{cancelAnimationFrame(firstFrame);cancelAnimationFrame(secondFrame);observer?.disconnect()}
-  },[products.length])
-  return <><Header/><main><Hero products={products} loading={productsLoading}/><Collections setFilter={setFilter}/><Shop products={products} filter={filter} setFilter={setFilter} onOpen={openProduct} onAdd={add} error={productError} loading={productsLoading} onRetry={onRetryProducts}/><Manifesto/></main><Footer/>{selected&&<ProductDetail product={selected} onClose={()=>setSelected(null)} onMarketplaceClick={recordClick}/>}</>
+function PublicStore({
+  products,
+  recordClick,
+  productError,
+  productsLoading,
+  onRetryProducts,
+}) {
+  const { add } = useCart();
+  const [filter, setFilter] = useState("todos");
+  const [selected, setSelected] = useState(null);
+  const openProduct = async (product) => {
+    setSelected(product);
+    if (!product.slug) return;
+    try {
+      const detail = await catalogService.getBySlug(product.slug);
+      setSelected((current) =>
+        current?.slug === product.slug ? detail : current,
+      );
+    } catch {
+      /* mantém os dados da listagem caso o detalhe não esteja disponível */
+    }
+  };
+  useEffect(() => {
+    const elements = document.querySelectorAll(
+      ".hero-copy > *, .hero-stage, .section-heading > *, .collection-card, .shop-top > *, .filter-row, .product-card, .manifesto-art, .manifesto-copy > *, .footer-main > *",
+    );
+    elements.forEach((element, index) => {
+      element.classList.add("reveal");
+      element.style.setProperty(
+        "--reveal-delay",
+        `${Math.min(index % 6, 5) * 55}ms`,
+      );
+    });
+    let observer, firstFrame, secondFrame;
+    firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        if (!("IntersectionObserver" in window)) {
+          elements.forEach((element) => element.classList.add("in-view"));
+          return;
+        }
+        observer = new IntersectionObserver(
+          (entries) =>
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("in-view");
+                observer.unobserve(entry.target);
+              }
+            }),
+          { threshold: 0.08, rootMargin: "0px 0px -20px" },
+        );
+        elements.forEach((element) => observer.observe(element));
+      });
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+      observer?.disconnect();
+    };
+  }, [products.length]);
+  return (
+    <>
+      <SiteHeader />
+      <main>
+        <Hero products={products} loading={productsLoading} />
+        <Collections setFilter={setFilter} />
+        <Shop
+          products={products}
+          filter={filter}
+          setFilter={setFilter}
+          onOpen={openProduct}
+          onAdd={add}
+          error={productError}
+          loading={productsLoading}
+          onRetry={onRetryProducts}
+        />
+        <Manifesto />
+      </main>
+      <Footer />
+      {selected && (
+        <ProductDetail
+          product={selected}
+          onClose={() => setSelected(null)}
+          onMarketplaceClick={recordClick}
+        />
+      )}
+    </>
+  );
 }
 
 function Login({ onLogin }) {
-  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState('')
-  const submit=async e=>{e.preventDefault();setError('');try{const session=await authService.login({email,password});onLogin(session)}catch(err){setError(err.message)}}
-  return <main className="auth-page"><div className="auth-side"><Brand/><div><span className="eyebrow">Painel Triso</span><h1>Sua vitrine,<br/>sob controle.</h1><p>Cadastre produtos e mantenha os links dos marketplaces sempre atualizados.</p></div><small>ACESSO RESTRITO · ADMINISTRAÇÃO</small></div><div className="auth-form-wrap"><a className="back-store" href="/">← Voltar para a loja</a><form className="auth-form" onSubmit={submit}><span className="admin-kicker">LOGIN / ADMIN</span><h2>Bem-vindo de volta.</h2><p>Entre com suas credenciais para gerenciar o catálogo.</p><label>E-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="seu@email.com" autoComplete="username" required/></label><label>Senha<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" required/></label>{error&&<div className="form-error">{error}</div>}<button className="admin-primary" type="submit">Entrar no painel <span>→</span></button>{APP_CONFIG.dataSource==='mock'&&<div className="demo-login"><b>Ambiente de demonstração</b><span>Credenciais definidas no banco mockado.</span></div>}</form></div></main>
+  const [email, setEmail] = useState(""),
+    [password, setPassword] = useState(""),
+    [error, setError] = useState("");
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    try {
+      const session = await authService.login({ email, password });
+      onLogin(session);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+  return (
+    <main className="auth-page">
+      <div className="auth-side">
+        <Brand />
+        <div>
+          <span className="eyebrow">Painel Triso</span>
+          <h1>
+            Sua vitrine,
+            <br />
+            sob controle.
+          </h1>
+          <p>
+            Cadastre produtos e mantenha os links dos marketplaces sempre
+            atualizados.
+          </p>
+        </div>
+        <small>ACESSO RESTRITO · ADMINISTRAÇÃO</small>
+      </div>
+      <div className="auth-form-wrap">
+        <a className="back-store" href="/">
+          ← Voltar para a loja
+        </a>
+        <form className="auth-form" onSubmit={submit}>
+          <span className="admin-kicker">LOGIN / ADMIN</span>
+          <h2>Bem-vindo de volta.</h2>
+          <p>Entre com suas credenciais para gerenciar o catálogo.</p>
+          <label>
+            E-mail
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="seu@email.com"
+              autoComplete="username"
+              required
+            />
+          </label>
+          <label>
+            Senha
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          {error && <div className="form-error">{error}</div>}
+          <button className="admin-primary" type="submit">
+            Entrar no painel <span>→</span>
+          </button>
+          {APP_CONFIG.dataSource === "mock" && (
+            <div className="demo-login">
+              <b>Ambiente de demonstração</b>
+              <span>Credenciais definidas no banco mockado.</span>
+            </div>
+          )}
+        </form>
+      </div>
+    </main>
+  );
 }
 
 function UniversalAuthPage({ register = false }) {
-  const { login, register: createAccount, logout } = useAuth()
-  const [form,setForm]=useState({ name:'',email:'',password:'',confirmation:'' })
-  const [error,setError]=useState('')
-  const [busy,setBusy]=useState(false)
-  const submit=async event=>{
-    event.preventDefault()
-    if(register&&form.password!==form.confirmation){setError('As senhas não coincidem.');return}
-    setBusy(true);setError('')
-    try{
-      const user=register?await createAccount(form):await login(form)
-      if(!isCustomer(user)&&!hasAdminAccess(user)){await logout();throw new Error('Esta conta não possui uma permissão autorizada.')}
-      const returnTo=sessionStorage.getItem('triso_return_to')
-      sessionStorage.removeItem('triso_return_to')
-      const target=isCustomer(user)&&returnTo?.startsWith('/')&&!returnTo.startsWith('/admin')?returnTo:getAuthenticatedHome(user)
-      window.history.pushState({}, '', target)
-      window.dispatchEvent(new PopStateEvent('popstate'))
-    }catch(err){setError(err.message||'Não foi possível entrar.');setBusy(false)}
-  }
-  return <main className="auth-page"><div className="auth-side"><Brand/><div><span className="eyebrow">Triso Studio</span><h1>{register?'Crie sua conta,':'Bem-vindo de'}<br/>{register?'compre direto.':'volta.'}</h1><p>Entre para acompanhar pedidos, finalizar sua compra e acessar sua conta.</p></div><small>COMPRA DIRETA · PAGAMENTO SEGURO</small></div><div className="auth-form-wrap"><a className="back-store" href="/">← Voltar para a loja</a><form className="auth-form" onSubmit={submit}><span className="admin-kicker">{register?'CADASTRO':'ENTRAR'} / TRISO</span><h2>{register?'Crie sua conta.':'Acesse sua conta.'}</h2><p>{register?'Seus dados permitem acompanhar pedidos e finalizar compras.':'Use suas credenciais para continuar.'}</p>{register&&<label>Nome<input value={form.name} onChange={event=>setForm({...form,name:event.target.value})} minLength="2" autoComplete="name" required/></label>}<label>E-mail<input type="email" value={form.email} onChange={event=>setForm({...form,email:event.target.value})} autoComplete="email" required/></label><label>Senha<input type="password" value={form.password} onChange={event=>setForm({...form,password:event.target.value})} minLength="8" autoComplete={register?'new-password':'current-password'} required/></label>{register&&<label>Confirme a senha<input type="password" value={form.confirmation} onChange={event=>setForm({...form,confirmation:event.target.value})} minLength="8" autoComplete="new-password" required/></label>}{error&&<div className="form-error" role="alert">{error}</div>}<button className="admin-primary" type="submit" disabled={busy}>{busy?(register?'Criando conta...':'Entrando...'):register?'Criar conta':'Entrar'} <span>→</span></button><p className="auth-switch">{register?<>Já possui conta? <a href="/entrar">Entrar</a></>:<>Ainda não tem conta? <a href="/cadastro">Criar conta</a></>}</p></form></div></main>
+  const { login, register: createAccount, logout } = useAuth();
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    confirmation: "",
+  });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async (event) => {
+    event.preventDefault();
+    if (register && form.password !== form.confirmation) {
+      setError("As senhas não coincidem.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const user = register ? await createAccount(form) : await login(form);
+      if (!isCustomer(user) && !hasAdminAccess(user)) {
+        await logout();
+        throw new Error("Esta conta não possui uma permissão autorizada.");
+      }
+      const returnTo = sessionStorage.getItem("triso_return_to");
+      sessionStorage.removeItem("triso_return_to");
+      const target =
+        isCustomer(user) &&
+        returnTo?.startsWith("/") &&
+        !returnTo.startsWith("/admin")
+          ? returnTo
+          : getAuthenticatedHome(user);
+      window.history.pushState({}, "", target);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    } catch (err) {
+      setError(err.message || "Não foi possível entrar.");
+      setBusy(false);
+    }
+  };
+  return (
+    <main className="auth-page">
+      <div className="auth-side">
+        <Brand />
+        <div>
+          <span className="eyebrow">Triso Studio</span>
+          <h1>
+            {register ? "Crie sua conta," : "Bem-vindo de"}
+            <br />
+            {register ? "compre direto." : "volta."}
+          </h1>
+          <p>
+            Entre para acompanhar pedidos, finalizar sua compra e acessar sua
+            conta.
+          </p>
+        </div>
+        <small>COMPRA DIRETA · PAGAMENTO SEGURO</small>
+      </div>
+      <div className="auth-form-wrap">
+        <a className="back-store" href="/">
+          ← Voltar para a loja
+        </a>
+        <form className="auth-form" onSubmit={submit}>
+          <span className="admin-kicker">
+            {register ? "CADASTRO" : "ENTRAR"} / TRISO
+          </span>
+          <h2>{register ? "Crie sua conta." : "Acesse sua conta."}</h2>
+          <p>
+            {register
+              ? "Seus dados permitem acompanhar pedidos e finalizar compras."
+              : "Use suas credenciais para continuar."}
+          </p>
+          {register && (
+            <label>
+              Nome
+              <input
+                value={form.name}
+                onChange={(event) =>
+                  setForm({ ...form, name: event.target.value })
+                }
+                minLength="2"
+                autoComplete="name"
+                required
+              />
+            </label>
+          )}
+          <label>
+            E-mail
+            <input
+              type="email"
+              value={form.email}
+              onChange={(event) =>
+                setForm({ ...form, email: event.target.value })
+              }
+              autoComplete="email"
+              required
+            />
+          </label>
+          <label>
+            Senha
+            <input
+              type="password"
+              value={form.password}
+              onChange={(event) =>
+                setForm({ ...form, password: event.target.value })
+              }
+              minLength="8"
+              autoComplete={register ? "new-password" : "current-password"}
+              required
+            />
+          </label>
+          {register && (
+            <label>
+              Confirme a senha
+              <input
+                type="password"
+                value={form.confirmation}
+                onChange={(event) =>
+                  setForm({ ...form, confirmation: event.target.value })
+                }
+                minLength="8"
+                autoComplete="new-password"
+                required
+              />
+            </label>
+          )}
+          {error && (
+            <div className="form-error" role="alert">
+              {error}
+            </div>
+          )}
+          <button className="admin-primary" type="submit" disabled={busy}>
+            {busy
+              ? register
+                ? "Criando conta..."
+                : "Entrando..."
+              : register
+                ? "Criar conta"
+                : "Entrar"}{" "}
+            <span>→</span>
+          </button>
+          <p className="auth-switch">
+            {register ? (
+              <>
+                Já possui conta? <a href="/entrar">Entrar</a>
+              </>
+            ) : (
+              <>
+                Ainda não tem conta? <a href="/cadastro">Criar conta</a>
+              </>
+            )}
+          </p>
+        </form>
+      </div>
+    </main>
+  );
 }
 
 function ProductImagesEditor({ images, art, onImagesChange, onArtChange }) {
-  const update=(index,field,value)=>onImagesChange(images.map((image,i)=>i===index?{...image,[field]:value}:image))
-  const normalizeCover=list=>list.map((image,index)=>({...image,isCover:index===0}))
-  const add=()=>{if(images.length<8)onImagesChange(normalizeCover([...images,{clientId:crypto.randomUUID(),url:'',altText:'',isCover:false}]))}
-  const remove=index=>onImagesChange(normalizeCover(images.filter((_,i)=>i!==index)))
-  const move=(index,direction)=>{const target=index+direction;if(target<0||target>=images.length)return;const next=[...images];[next[index],next[target]]=[next[target],next[index]];onImagesChange(normalizeCover(next))}
-  if(!images.length)return <><label>Visual padrão<select value={art||'vase'} onChange={event=>onArtChange(event.target.value)}>{CATALOG_OPTIONS.visuals.map(item=><option value={item.value} key={item.value}>{item.label}</option>)}</select></label><div className="image-fields field-wide"><div className="image-fields-head"><span><b>Imagens do produto</b><small>Ao adicionar uma imagem, ela substitui o visual padrão</small></span><button type="button" onClick={add}>+ Adicionar imagem</button></div></div></>
-  return <div className="image-fields field-wide">
-    <div className="image-fields-head"><span><b>Imagens do produto</b><small>Até 8 imagens em URL HTTPS; a primeira imagem é sempre a capa</small></span><button type="button" onClick={add} disabled={images.length>=8}>+ Adicionar imagem</button></div>
-    <div className="image-preview-gallery" aria-label="Pré-visualização das imagens">{images.map((image,index)=><figure className={index===0?'is-cover':''} key={`preview-${image.id||image.clientId||index}`}><div><span>{image.url?'Imagem indisponível':'Informe uma URL'}</span>{image.url&&<img src={image.url} alt={image.altText||`Pré-visualização ${index+1}`} onLoad={event=>event.currentTarget.classList.add('is-loaded')} onError={event=>event.currentTarget.classList.remove('is-loaded')}/>}</div><figcaption><b>{index===0?'Capa':`Imagem ${index+1}`}</b><small>{index+1} de {images.length}</small></figcaption></figure>)}</div>
-    {images.map((image,index)=><div className="image-field-row" key={image.id||image.clientId||index}><div className="image-order-controls"><span>{index+1}</span><button type="button" onClick={()=>move(index,-1)} disabled={index===0} aria-label={`Mover imagem ${index+1} para cima`}>↑</button><button type="button" onClick={()=>move(index,1)} disabled={index===images.length-1} aria-label={`Mover imagem ${index+1} para baixo`}>↓</button></div><div className={`image-cover-choice ${index===0?'is-cover':''}`}><span>{index===0?'Capa':'Galeria'}</span></div><input type="url" pattern="https://.*" value={image.url} onChange={event=>update(index,'url',event.target.value)} placeholder="https://.../produto.jpg" required/><input value={image.altText||''} onChange={event=>update(index,'altText',event.target.value)} placeholder="Texto alternativo" maxLength="200"/><button className="image-remove" type="button" onClick={()=>remove(index)} aria-label="Remover imagem">×</button></div>)}
-  </div>
+  const update = (index, field, value) =>
+    onImagesChange(
+      images.map((image, i) =>
+        i === index ? { ...image, [field]: value } : image,
+      ),
+    );
+  const normalizeCover = (list) =>
+    list.map((image, index) => ({ ...image, isCover: index === 0 }));
+  const add = () => {
+    if (images.length < 8)
+      onImagesChange(
+        normalizeCover([
+          ...images,
+          {
+            clientId: crypto.randomUUID(),
+            url: "",
+            altText: "",
+            isCover: false,
+          },
+        ]),
+      );
+  };
+  const remove = (index) =>
+    onImagesChange(normalizeCover(images.filter((_, i) => i !== index)));
+  const move = (index, direction) => {
+    const target = index + direction;
+    if (target < 0 || target >= images.length) return;
+    const next = [...images];
+    [next[index], next[target]] = [next[target], next[index]];
+    onImagesChange(normalizeCover(next));
+  };
+  if (!images.length)
+    return (
+      <>
+        <label>
+          Visual padrão
+          <select
+            value={art || "vase"}
+            onChange={(event) => onArtChange(event.target.value)}
+          >
+            {CATALOG_OPTIONS.visuals.map((item) => (
+              <option value={item.value} key={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="image-fields field-wide">
+          <div className="image-fields-head">
+            <span>
+              <b>Imagens do produto</b>
+              <small>
+                Ao adicionar uma imagem, ela substitui o visual padrão
+              </small>
+            </span>
+            <button type="button" onClick={add}>
+              + Adicionar imagem
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  return (
+    <div className="image-fields field-wide">
+      <div className="image-fields-head">
+        <span>
+          <b>Imagens do produto</b>
+          <small>
+            Até 8 imagens em URL HTTPS; a primeira imagem é sempre a capa
+          </small>
+        </span>
+        <button type="button" onClick={add} disabled={images.length >= 8}>
+          + Adicionar imagem
+        </button>
+      </div>
+      <div
+        className="image-preview-gallery"
+        aria-label="Pré-visualização das imagens"
+      >
+        {images.map((image, index) => (
+          <figure
+            className={index === 0 ? "is-cover" : ""}
+            key={`preview-${image.id || image.clientId || index}`}
+          >
+            <div>
+              <span>
+                {image.url ? "Imagem indisponível" : "Informe uma URL"}
+              </span>
+              {image.url && (
+                <img
+                  src={image.url}
+                  alt={image.altText || `Pré-visualização ${index + 1}`}
+                  onLoad={(event) =>
+                    event.currentTarget.classList.add("is-loaded")
+                  }
+                  onError={(event) =>
+                    event.currentTarget.classList.remove("is-loaded")
+                  }
+                />
+              )}
+            </div>
+            <figcaption>
+              <b>{index === 0 ? "Capa" : `Imagem ${index + 1}`}</b>
+              <small>
+                {index + 1} de {images.length}
+              </small>
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+      {images.map((image, index) => (
+        <div
+          className="image-field-row"
+          key={image.id || image.clientId || index}
+        >
+          <div className="image-order-controls">
+            <span>{index + 1}</span>
+            <button
+              type="button"
+              onClick={() => move(index, -1)}
+              disabled={index === 0}
+              aria-label={`Mover imagem ${index + 1} para cima`}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              onClick={() => move(index, 1)}
+              disabled={index === images.length - 1}
+              aria-label={`Mover imagem ${index + 1} para baixo`}
+            >
+              ↓
+            </button>
+          </div>
+          <div
+            className={`image-cover-choice ${index === 0 ? "is-cover" : ""}`}
+          >
+            <span>{index === 0 ? "Capa" : "Galeria"}</span>
+          </div>
+          <input
+            type="url"
+            pattern="https://.*"
+            value={image.url}
+            onChange={(event) => update(index, "url", event.target.value)}
+            placeholder="https://.../produto.jpg"
+            required
+          />
+          <input
+            value={image.altText || ""}
+            onChange={(event) => update(index, "altText", event.target.value)}
+            placeholder="Texto alternativo"
+            maxLength="200"
+          />
+          <button
+            className="image-remove"
+            type="button"
+            onClick={() => remove(index)}
+            aria-label="Remover imagem"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  );
 }
 
-function ProductForm({ product, onSave, onClose, categoryOptions, marketplaceOptions, canManageCatalogOptions=false }) {
-  const remoteOptions=useCatalogOptions(true)
-  const [categoryModalOpen,setCategoryModalOpen]=useState(false)
-  const [marketplaceModalOpen,setMarketplaceModalOpen]=useState(false)
-  const [saving,setSaving]=useState(false)
-  categoryOptions=categoryOptions||remoteOptions.categories
-  marketplaceOptions=marketplaceOptions||remoteOptions.marketplaces||[]
-  if(!marketplaceOptions.length)marketplaceOptions=EMPTY_MARKETPLACE_OPTIONS
-  const [form,setForm]=useState(() => {
-    const source = product || emptyProduct
-    const firstMarketplace=marketplaceOptions.find(item=>!item.unavailable)
-    const images=source.images?.length?source.images.map((image,index)=>({...image,clientId:image.id||crypto.randomUUID(),isCover:index===0})):source.imageUrl?[{clientId:crypto.randomUUID(),url:source.imageUrl,altText:source.name||'',isCover:true}]:[]
-    return { ...source, images, imageUrl:(images.find(image=>image.isCover)||images[0])?.url||'', categoryId:source.categoryId||categoryOptions[0]?.id||'', marketplaces: getMarketplaces(source).length ? getMarketplaces(source) : firstMarketplace ? [{ marketplaceId:firstMarketplace.id, name:firstMarketplace.name, url:'', externalProductId:'' }] : [] }
-  })
-  useEffect(()=>{const firstMarketplace=marketplaceOptions.find(item=>!item.unavailable);setForm(current=>{const categoryId=current.categoryId||categoryOptions[0]?.id||'';const marketplaces=current.marketplaces.length||!firstMarketplace?current.marketplaces:[{marketplaceId:firstMarketplace.id,name:firstMarketplace.name,url:'',externalProductId:''}];if(categoryId===current.categoryId&&marketplaces===current.marketplaces)return current;return {...current,categoryId,marketplaces}})},[categoryOptions,marketplaceOptions])
-  const set=(field,value)=>setForm(current=>({...current,[field]:value}))
-  const setImages=images=>setForm(current=>{const normalized=images.map((image,index)=>({...image,isCover:index===0}));return {...current,images:normalized,imageUrl:normalized[0]?.url||'',art:normalized.length?'':current.art||'vase'}})
-  const categoriesChanged=async preferred=>{const refreshed=await remoteOptions.reload();setForm(current=>{const preferredId=preferred?.active!==false&&refreshed.categories.some(item=>item.id===preferred?.id)?preferred.id:null;const currentId=refreshed.categories.some(item=>item.id===current.categoryId)?current.categoryId:null;return {...current,categoryId:preferredId||currentId||refreshed.categories[0]?.id||''}})}
-  const marketplacesChanged=async preferred=>{const refreshed=await remoteOptions.reload();setForm(current=>{const available=refreshed.marketplaces;return {...current,marketplaces:current.marketplaces.map(listing=>{const selected=available.find(item=>item.id===listing.marketplaceId)||(listing.marketplaceId==='missing-marketplace'?available.find(item=>item.id===preferred?.id):null)||available[0];return selected?{...listing,marketplaceId:selected.id,name:selected.name}:listing}).filter(listing=>listing.marketplaceId)}})}
-  const setListing=(index,field,value)=>setForm(current=>({...current,marketplaces:current.marketplaces.map((item,i)=>i===index?{...item,[field]:value}:item)}))
-  const setListingMarketplace=(index,id)=>{const marketplace=marketplaceOptions.find(item=>item.id===id);setForm(current=>({...current,marketplaces:current.marketplaces.map((item,i)=>i===index?{...item,marketplaceId:id,name:marketplace?.name||''}:item)}))}
-  const addListing=()=>setForm(current=>{const used=new Set(current.marketplaces.map(item=>item.marketplaceId));const marketplace=marketplaceOptions.find(item=>!item.unavailable&&!used.has(item.id));return marketplace?{...current,marketplaces:[...current.marketplaces,{marketplaceId:marketplace.id,name:marketplace.name,url:'',externalProductId:''}]}:current})
-  const removeListing=index=>setForm(current=>({...current,marketplaces:current.marketplaces.filter((_,i)=>i!==index)}))
-  const submit=async e=>{e.preventDefault();if(saving)return;if(form.images.length>8){window.alert('O produto pode ter no máximo 8 imagens.');return}const valid=form.marketplaces.filter(item=>item.marketplaceId&&item.url&&marketplaceOptions.some(option=>option.id===item.marketplaceId&&!option.unavailable));if(new Set(valid.map(item=>item.marketplaceId)).size!==valid.length){window.alert('Selecione cada marketplace apenas uma vez.');return}setSaving(true);try{await onSave({...form,price:Number(form.price),status:form.active?'published':'draft',marketplaces:valid,marketplace:valid[0]?.name||'',marketplaceUrl:valid[0]?.url||''})}catch(error){window.alert(error.message);setSaving(false)}}
-  return <>
-    <div className="admin-modal-backdrop"><div className="product-modal">
-      <div className="modal-head"><div><span className="admin-kicker">PRODUTO / {product?'EDIÇÃO':'NOVO'}</span><h2>{product?'Editar produto':'Cadastrar produto'}</h2></div><button onClick={onClose}>×</button></div>
-      <form className="product-form" onSubmit={submit}>
-        <div className="product-form-top">
-          <div className="form-grid">
-            <label className="field-wide">Nome do produto<input minLength="2" maxLength="120" value={form.name} onChange={e=>set('name',e.target.value)} required/></label>
-            <label>Preço inicial (R$)<input type="number" min="0" step="0.01" value={form.price} onChange={e=>set('price',e.target.value)} required/></label>
-            <label>Categoria<select value={form.categoryId} onChange={e=>set('categoryId',e.target.value)} required><option value="" disabled>Selecione</option>{categoryOptions.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}</select>{canManageCatalogOptions&&<button className="category-create-inline" type="button" onClick={()=>setCategoryModalOpen(true)}>Gerenciar categorias</button>}</label>
-            <label className="field-wide">Descrição<textarea maxLength="2000" value={form.description} onChange={e=>set('description',e.target.value)} rows="3"/></label>
-            <label className="field-wide">Selo do produto<input value={form.badge||''} onChange={e=>set('badge',e.target.value)} placeholder="Novo, Destaque..."/></label>
-            <label className="status-toggle field-wide"><input type="checkbox" checked={form.requiresShipping!==false} onChange={e=>set('requiresShipping',e.target.checked)}/><i/><span><b>Produto requer envio</b><small>Ative para informar dados usados na cotação de frete.</small></span></label>
-            {form.requiresShipping!==false&&<div className="field-wide logistics-fields"><label>Peso (g)<input type="number" min="1" step="1" value={form.weightGrams??''} onChange={e=>set('weightGrams',e.target.value)} required/></label><label>Largura (cm)<input type="number" min="0.01" step="0.01" value={form.widthCm??''} onChange={e=>set('widthCm',e.target.value)} required/></label><label>Altura (cm)<input type="number" min="0.01" step="0.01" value={form.heightCm??''} onChange={e=>set('heightCm',e.target.value)} required/></label><label>Comprimento (cm)<input type="number" min="0.01" step="0.01" value={form.lengthCm??''} onChange={e=>set('lengthCm',e.target.value)} required/></label></div>}
+function ProductForm({
+  product,
+  onSave,
+  onClose,
+  categoryOptions,
+  marketplaceOptions,
+  canManageCatalogOptions = false,
+}) {
+  const remoteOptions = useCatalogOptions(true);
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [marketplaceModalOpen, setMarketplaceModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  categoryOptions = categoryOptions || remoteOptions.categories;
+  marketplaceOptions = marketplaceOptions || remoteOptions.marketplaces || [];
+  if (!marketplaceOptions.length)
+    marketplaceOptions = EMPTY_MARKETPLACE_OPTIONS;
+  const [form, setForm] = useState(() => {
+    const source = product || emptyProduct;
+    const firstMarketplace = marketplaceOptions.find(
+      (item) => !item.unavailable,
+    );
+    const images = source.images?.length
+      ? source.images.map((image, index) => ({
+          ...image,
+          clientId: image.id || crypto.randomUUID(),
+          isCover: index === 0,
+        }))
+      : source.imageUrl
+        ? [
+            {
+              clientId: crypto.randomUUID(),
+              url: source.imageUrl,
+              altText: source.name || "",
+              isCover: true,
+            },
+          ]
+        : [];
+    return {
+      ...source,
+      images,
+      imageUrl: (images.find((image) => image.isCover) || images[0])?.url || "",
+      categoryId: source.categoryId || categoryOptions[0]?.id || "",
+      marketplaces: getMarketplaces(source).length
+        ? getMarketplaces(source)
+        : firstMarketplace
+          ? [
+              {
+                marketplaceId: firstMarketplace.id,
+                name: firstMarketplace.name,
+                url: "",
+                externalProductId: "",
+              },
+            ]
+          : [],
+    };
+  });
+  useEffect(() => {
+    const firstMarketplace = marketplaceOptions.find(
+      (item) => !item.unavailable,
+    );
+    setForm((current) => {
+      const categoryId = current.categoryId || categoryOptions[0]?.id || "";
+      const marketplaces =
+        current.marketplaces.length || !firstMarketplace
+          ? current.marketplaces
+          : [
+              {
+                marketplaceId: firstMarketplace.id,
+                name: firstMarketplace.name,
+                url: "",
+                externalProductId: "",
+              },
+            ];
+      if (
+        categoryId === current.categoryId &&
+        marketplaces === current.marketplaces
+      )
+        return current;
+      return { ...current, categoryId, marketplaces };
+    });
+  }, [categoryOptions, marketplaceOptions]);
+  const set = (field, value) =>
+    setForm((current) => ({ ...current, [field]: value }));
+  const setImages = (images) =>
+    setForm((current) => {
+      const normalized = images.map((image, index) => ({
+        ...image,
+        isCover: index === 0,
+      }));
+      return {
+        ...current,
+        images: normalized,
+        imageUrl: normalized[0]?.url || "",
+        art: normalized.length ? "" : current.art || "vase",
+      };
+    });
+  const categoriesChanged = async (preferred) => {
+    const refreshed = await remoteOptions.reload();
+    setForm((current) => {
+      const preferredId =
+        preferred?.active !== false &&
+        refreshed.categories.some((item) => item.id === preferred?.id)
+          ? preferred.id
+          : null;
+      const currentId = refreshed.categories.some(
+        (item) => item.id === current.categoryId,
+      )
+        ? current.categoryId
+        : null;
+      return {
+        ...current,
+        categoryId:
+          preferredId || currentId || refreshed.categories[0]?.id || "",
+      };
+    });
+  };
+  const marketplacesChanged = async (preferred) => {
+    const refreshed = await remoteOptions.reload();
+    setForm((current) => {
+      const available = refreshed.marketplaces;
+      return {
+        ...current,
+        marketplaces: current.marketplaces
+          .map((listing) => {
+            const selected =
+              available.find((item) => item.id === listing.marketplaceId) ||
+              (listing.marketplaceId === "missing-marketplace"
+                ? available.find((item) => item.id === preferred?.id)
+                : null) ||
+              available[0];
+            return selected
+              ? { ...listing, marketplaceId: selected.id, name: selected.name }
+              : listing;
+          })
+          .filter((listing) => listing.marketplaceId),
+      };
+    });
+  };
+  const setListing = (index, field, value) =>
+    setForm((current) => ({
+      ...current,
+      marketplaces: current.marketplaces.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item,
+      ),
+    }));
+  const setListingMarketplace = (index, id) => {
+    const marketplace = marketplaceOptions.find((item) => item.id === id);
+    setForm((current) => ({
+      ...current,
+      marketplaces: current.marketplaces.map((item, i) =>
+        i === index
+          ? { ...item, marketplaceId: id, name: marketplace?.name || "" }
+          : item,
+      ),
+    }));
+  };
+  const addListing = () =>
+    setForm((current) => {
+      const used = new Set(
+        current.marketplaces.map((item) => item.marketplaceId),
+      );
+      const marketplace = marketplaceOptions.find(
+        (item) => !item.unavailable && !used.has(item.id),
+      );
+      return marketplace
+        ? {
+            ...current,
+            marketplaces: [
+              ...current.marketplaces,
+              {
+                marketplaceId: marketplace.id,
+                name: marketplace.name,
+                url: "",
+                externalProductId: "",
+              },
+            ],
+          }
+        : current;
+    });
+  const removeListing = (index) =>
+    setForm((current) => ({
+      ...current,
+      marketplaces: current.marketplaces.filter((_, i) => i !== index),
+    }));
+  const submit = async (e) => {
+    e.preventDefault();
+    if (saving) return;
+    if (form.images.length > 8) {
+      window.alert("O produto pode ter no máximo 8 imagens.");
+      return;
+    }
+    const valid = form.marketplaces.filter(
+      (item) =>
+        item.marketplaceId &&
+        item.url &&
+        marketplaceOptions.some(
+          (option) => option.id === item.marketplaceId && !option.unavailable,
+        ),
+    );
+    if (
+      new Set(valid.map((item) => item.marketplaceId)).size !== valid.length
+    ) {
+      window.alert("Selecione cada marketplace apenas uma vez.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave({
+        ...form,
+        price: Number(form.price),
+        status: form.active ? "published" : "draft",
+        marketplaces: valid,
+        marketplace: valid[0]?.name || "",
+        marketplaceUrl: valid[0]?.url || "",
+      });
+    } catch (error) {
+      window.alert(error.message);
+      setSaving(false);
+    }
+  };
+  return (
+    <>
+      <div className="admin-modal-backdrop">
+        <div className="product-modal">
+          <div className="modal-head">
+            <div>
+              <span className="admin-kicker">
+                PRODUTO / {product ? "EDIÇÃO" : "NOVO"}
+              </span>
+              <h2>{product ? "Editar produto" : "Cadastrar produto"}</h2>
+            </div>
+            <button onClick={onClose}>×</button>
           </div>
-          <div className="form-preview"><span>PRÉ-VISUALIZAÇÃO</span><ProductVisual product={form}/><h3>{form.name||'Nome do produto'}</h3><p>{form.marketplaces.length} canais · {form.price?money(form.price):'R$ 0,00'}</p></div>
+          <form className="product-form" onSubmit={submit}>
+            <div className="product-form-top">
+              <div className="form-grid">
+                <label className="field-wide">
+                  Nome do produto
+                  <input
+                    minLength="2"
+                    maxLength="120"
+                    value={form.name}
+                    onChange={(e) => set("name", e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Preço inicial (R$)
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.price}
+                    onChange={(e) => set("price", e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Categoria
+                  <select
+                    value={form.categoryId}
+                    onChange={(e) => set("categoryId", e.target.value)}
+                    required
+                  >
+                    <option value="" disabled>
+                      Selecione
+                    </option>
+                    {categoryOptions.map((item) => (
+                      <option value={item.id} key={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                  {canManageCatalogOptions && (
+                    <button
+                      className="category-create-inline"
+                      type="button"
+                      onClick={() => setCategoryModalOpen(true)}
+                    >
+                      Gerenciar categorias
+                    </button>
+                  )}
+                </label>
+                <label className="field-wide">
+                  Descrição
+                  <textarea
+                    maxLength="2000"
+                    value={form.description}
+                    onChange={(e) => set("description", e.target.value)}
+                    rows="3"
+                  />
+                </label>
+                <label className="field-wide">
+                  Selo do produto
+                  <input
+                    value={form.badge || ""}
+                    onChange={(e) => set("badge", e.target.value)}
+                    placeholder="Novo, Destaque..."
+                  />
+                </label>
+                <label className="status-toggle field-wide">
+                  <input
+                    type="checkbox"
+                    checked={form.requiresShipping !== false}
+                    onChange={(e) => set("requiresShipping", e.target.checked)}
+                  />
+                  <i />
+                  <span>
+                    <b>Produto requer envio</b>
+                    <small>
+                      Ative para informar dados usados na cotação de frete.
+                    </small>
+                  </span>
+                </label>
+                {form.requiresShipping !== false && (
+                  <div className="field-wide logistics-fields">
+                    <label>
+                      Peso (g)
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={form.weightGrams ?? ""}
+                        onChange={(e) => set("weightGrams", e.target.value)}
+                        required
+                      />
+                    </label>
+                    <label>
+                      Largura (cm)
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={form.widthCm ?? ""}
+                        onChange={(e) => set("widthCm", e.target.value)}
+                        required
+                      />
+                    </label>
+                    <label>
+                      Altura (cm)
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={form.heightCm ?? ""}
+                        onChange={(e) => set("heightCm", e.target.value)}
+                        required
+                      />
+                    </label>
+                    <label>
+                      Comprimento (cm)
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={form.lengthCm ?? ""}
+                        onChange={(e) => set("lengthCm", e.target.value)}
+                        required
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+              <div className="form-preview">
+                <span>PRÉ-VISUALIZAÇÃO</span>
+                <ProductVisual product={form} />
+                <h3>{form.name || "Nome do produto"}</h3>
+                <p>
+                  {form.marketplaces.length} canais ·{" "}
+                  {form.price ? money(form.price) : "R$ 0,00"}
+                </p>
+              </div>
+            </div>
+            <div className="product-form-lower">
+              <ProductImagesEditor
+                images={form.images || []}
+                art={form.art}
+                onImagesChange={setImages}
+                onArtChange={(value) => set("art", value)}
+              />
+              <div className="marketplace-fields field-wide">
+                <div className="marketplace-fields-head">
+                  <span>
+                    <b>Anúncios nos marketplaces</b>
+                    <small>
+                      Informe o marketplace, o link e o identificador externo do
+                      anúncio
+                    </small>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={addListing}
+                    disabled={form.marketplaces.length >= 10}
+                  >
+                    + Adicionar canal
+                  </button>
+                </div>
+                <div className="marketplace-fields-box">
+                  {form.marketplaces.map((listing, index) => (
+                    <div
+                      className="marketplace-field-row"
+                      key={listing.id || index}
+                    >
+                      <select
+                        value={listing.marketplaceId || ""}
+                        onChange={(e) =>
+                          setListingMarketplace(index, e.target.value)
+                        }
+                        required
+                      >
+                        <option value="" disabled>
+                          Marketplace
+                        </option>
+                        {marketplaceOptions.map((item) => (
+                          <option value={item.id} key={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="url"
+                        pattern="https://.*"
+                        value={listing.url}
+                        onChange={(e) =>
+                          setListing(index, "url", e.target.value)
+                        }
+                        placeholder="Link HTTPS do anúncio"
+                        required
+                      />
+                      <input
+                        maxLength="120"
+                        value={listing.externalProductId || ""}
+                        onChange={(e) =>
+                          setListing(index, "externalProductId", e.target.value)
+                        }
+                        placeholder="ID externo (ex.: MLB123456)"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeListing(index)}
+                        aria-label="Remover canal"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {canManageCatalogOptions && (
+                  <button
+                    className="marketplace-manage-button"
+                    type="button"
+                    onClick={() => setMarketplaceModalOpen(true)}
+                  >
+                    Gerenciar marketplaces
+                  </button>
+                )}
+              </div>
+              <label className="status-toggle field-wide">
+                <input
+                  type="checkbox"
+                  checked={form.active}
+                  onChange={(e) => set("active", e.target.checked)}
+                />
+                <i />
+                <span>
+                  <b>Produto publicado</b>
+                  <small>Aparece na vitrine pública</small>
+                </span>
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="admin-secondary"
+                onClick={onClose}
+              >
+                Cancelar
+              </button>
+              <button type="submit" className="admin-primary" disabled={saving}>
+                {saving ? (
+                  "Salvando..."
+                ) : (
+                  <>
+                    Salvar produto <span>→</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
-        <div className="product-form-lower">
-          <ProductImagesEditor images={form.images||[]} art={form.art} onImagesChange={setImages} onArtChange={value=>set('art',value)}/>
-          <div className="marketplace-fields field-wide">
-            <div className="marketplace-fields-head"><span><b>Anúncios nos marketplaces</b><small>Informe o marketplace, o link e o identificador externo do anúncio</small></span><button type="button" onClick={addListing} disabled={form.marketplaces.length>=10}>+ Adicionar canal</button></div>
-            <div className="marketplace-fields-box">{form.marketplaces.map((listing,index)=><div className="marketplace-field-row" key={listing.id||index}><select value={listing.marketplaceId||''} onChange={e=>setListingMarketplace(index,e.target.value)} required><option value="" disabled>Marketplace</option>{marketplaceOptions.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}</select><input type="url" pattern="https://.*" value={listing.url} onChange={e=>setListing(index,'url',e.target.value)} placeholder="Link HTTPS do anúncio" required/><input maxLength="120" value={listing.externalProductId||''} onChange={e=>setListing(index,'externalProductId',e.target.value)} placeholder="ID externo (ex.: MLB123456)"/><button type="button" onClick={()=>removeListing(index)} aria-label="Remover canal">×</button></div>)}</div>
-            {canManageCatalogOptions&&<button className="marketplace-manage-button" type="button" onClick={()=>setMarketplaceModalOpen(true)}>Gerenciar marketplaces</button>}
-          </div>
-          <label className="status-toggle field-wide"><input type="checkbox" checked={form.active} onChange={e=>set('active',e.target.checked)}/><i/><span><b>Produto publicado</b><small>Aparece na vitrine pública</small></span></label>
-        </div>
-        <div className="modal-actions"><button type="button" className="admin-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="admin-primary" disabled={saving}>{saving?'Salvando...':<>Salvar produto <span>→</span></>}</button></div>
-      </form>
-    </div></div>
-    {canManageCatalogOptions&&categoryModalOpen&&<CategoryModal onClose={()=>setCategoryModalOpen(false)} onChanged={categoriesChanged}/>}
-    {canManageCatalogOptions&&marketplaceModalOpen&&<MarketplaceModal onClose={()=>setMarketplaceModalOpen(false)} onChanged={marketplacesChanged}/>}
-  </>
+      </div>
+      {canManageCatalogOptions && categoryModalOpen && (
+        <CategoryModal
+          onClose={() => setCategoryModalOpen(false)}
+          onChanged={categoriesChanged}
+        />
+      )}
+      {canManageCatalogOptions && marketplaceModalOpen && (
+        <MarketplaceModal
+          onClose={() => setMarketplaceModalOpen(false)}
+          onChanged={marketplacesChanged}
+        />
+      )}
+    </>
+  );
 }
 
 function AnalyticsPanel({ clicks }) {
-  const today = new Date().toISOString().slice(0,10)
-  const dateBefore = days => { const date=new Date();date.setDate(date.getDate()-(days-1));return date.toISOString().slice(0,10) }
-  const [from,setFrom]=useState(dateBefore(30)),[to,setTo]=useState(today),[preset,setPreset]=useState(30)
-  const choosePreset=days=>{setPreset(days);setTo(today);setFrom(days==='all'?'2020-01-01':dateBefore(days))}
-  const filtered=useMemo(()=>clicks.filter(click=>{const date=click.timestamp.slice(0,10);return date>=from&&date<=to}),[clicks,from,to])
-  const groupBy=key=>Object.entries(filtered.reduce((acc,item)=>{const value=typeof key==='function'?key(item):item[key];acc[value]=(acc[value]||0)+1;return acc},{})).sort((a,b)=>b[1]-a[1])
-  const products=groupBy('productName'),markets=groupBy('marketplace'),links=groupBy(item=>`${item.productName}|||${item.marketplace}|||${item.url}`)
-  const daily=Object.entries(filtered.reduce((acc,item)=>{const day=item.timestamp.slice(0,10);acc[day]=(acc[day]||0)+1;return acc},{})).sort((a,b)=>a[0].localeCompare(b[0]))
-  const chartData=daily.slice(-30),chartMax=Math.max(...chartData.map(([,value])=>value),1),marketMax=Math.max(...markets.map(([,value])=>value),1)
-  return <section className="analytics-panel"><div className="analytics-head"><div><span className="admin-kicker">ANALYTICS / CLIQUES</span><h2>Desempenho dos anúncios</h2><p>Acompanhe quais produtos e canais mais levam visitantes para a compra.</p></div><div className="date-controls"><div>{[[7,'7 dias'],[30,'30 dias'],[90,'90 dias'],['all','Tudo']].map(([value,label])=><button key={value} className={preset===value?'active':''} onClick={()=>choosePreset(value)}>{label}</button>)}</div><label>De<input type="date" value={from} onChange={e=>{setFrom(e.target.value);setPreset('custom')}}/></label><span>→</span><label>Até<input type="date" value={to} max={today} onChange={e=>{setTo(e.target.value);setPreset('custom')}}/></label></div></div><div className="analytics-metrics"><div><span>Cliques no período</span><b>{filtered.length}</b><small>{clicks.length} cliques no total</small></div><div><span>Produto mais clicado</span><b>{products[0]?.[0]||'—'}</b><small>{products[0]?`${products[0][1]} cliques`:'Sem dados no período'}</small></div><div><span>Marketplace líder</span><b>{markets[0]?.[0]||'—'}</b><small>{markets[0]?`${markets[0][1]} cliques`:'Sem dados no período'}</small></div></div><div className="analytics-grid"><article className="click-chart-card"><div className="analytics-card-head"><div><h3>Cliques ao longo do tempo</h3><span>Últimos {chartData.length||0} dias com atividade</span></div><b>{filtered.length}</b></div>{chartData.length?<div className="click-chart">{chartData.map(([date,value])=><div className="chart-column" key={date} title={`${new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR')}: ${value} cliques`}><span>{value}</span><i style={{height:`${Math.max(8,value/chartMax*100)}%`}}/><small>{new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</small></div>)}</div>:<EmptyAnalytics/>}</article><article className="market-ranking"><div className="analytics-card-head"><div><h3>Marketplaces</h3><span>Distribuição de cliques</span></div></div>{markets.length?<div className="market-bars">{markets.map(([name,value])=><div key={name}><span><b>{name}</b><strong>{value}</strong></span><i><b style={{width:`${value/marketMax*100}%`}}/></i></div>)}</div>:<EmptyAnalytics/>}</article></div><article className="link-ranking"><div className="analytics-card-head"><div><h3>Cliques por produto e link</h3><span>Ranking detalhado de cada anúncio publicado</span></div></div>{links.length?<div className="link-ranking-table"><div className="link-ranking-row link-ranking-header"><span>Posição</span><span>Produto</span><span>Marketplace</span><span>Cliques</span><span>Participação</span></div>{links.map(([key,value],index)=>{const [product,market]=key.split('|||');return <div className="link-ranking-row" key={key}><span>#{String(index+1).padStart(2,'0')}</span><span><b>{product}</b></span><span><i>{market.slice(0,2).toUpperCase()}</i>{market}</span><strong>{value}</strong><span>{filtered.length?Math.round(value/filtered.length*100):0}%</span></div>})}</div>:<EmptyAnalytics/>}</article></section>
+  const today = new Date().toISOString().slice(0, 10);
+  const dateBefore = (days) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (days - 1));
+    return date.toISOString().slice(0, 10);
+  };
+  const [from, setFrom] = useState(dateBefore(30)),
+    [to, setTo] = useState(today),
+    [preset, setPreset] = useState(30);
+  const choosePreset = (days) => {
+    setPreset(days);
+    setTo(today);
+    setFrom(days === "all" ? "2020-01-01" : dateBefore(days));
+  };
+  const filtered = useMemo(
+    () =>
+      clicks.filter((click) => {
+        const date = click.timestamp.slice(0, 10);
+        return date >= from && date <= to;
+      }),
+    [clicks, from, to],
+  );
+  const groupBy = (key) =>
+    Object.entries(
+      filtered.reduce((acc, item) => {
+        const value = typeof key === "function" ? key(item) : item[key];
+        acc[value] = (acc[value] || 0) + 1;
+        return acc;
+      }, {}),
+    ).sort((a, b) => b[1] - a[1]);
+  const products = groupBy("productName"),
+    markets = groupBy("marketplace"),
+    links = groupBy(
+      (item) => `${item.productName}|||${item.marketplace}|||${item.url}`,
+    );
+  const daily = Object.entries(
+    filtered.reduce((acc, item) => {
+      const day = item.timestamp.slice(0, 10);
+      acc[day] = (acc[day] || 0) + 1;
+      return acc;
+    }, {}),
+  ).sort((a, b) => a[0].localeCompare(b[0]));
+  const chartData = daily.slice(-30),
+    chartMax = Math.max(...chartData.map(([, value]) => value), 1),
+    marketMax = Math.max(...markets.map(([, value]) => value), 1);
+  return (
+    <section className="analytics-panel">
+      <div className="analytics-head">
+        <div>
+          <span className="admin-kicker">ANALYTICS / CLIQUES</span>
+          <h2>Desempenho dos anúncios</h2>
+          <p>
+            Acompanhe quais produtos e canais mais levam visitantes para a
+            compra.
+          </p>
+        </div>
+        <div className="date-controls">
+          <div>
+            {[
+              [7, "7 dias"],
+              [30, "30 dias"],
+              [90, "90 dias"],
+              ["all", "Tudo"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                className={preset === value ? "active" : ""}
+                onClick={() => choosePreset(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <label>
+            De
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => {
+                setFrom(e.target.value);
+                setPreset("custom");
+              }}
+            />
+          </label>
+          <span>→</span>
+          <label>
+            Até
+            <input
+              type="date"
+              value={to}
+              max={today}
+              onChange={(e) => {
+                setTo(e.target.value);
+                setPreset("custom");
+              }}
+            />
+          </label>
+        </div>
+      </div>
+      <div className="analytics-metrics">
+        <div>
+          <span>Cliques no período</span>
+          <b>{filtered.length}</b>
+          <small>{clicks.length} cliques no total</small>
+        </div>
+        <div>
+          <span>Produto mais clicado</span>
+          <b>{products[0]?.[0] || "—"}</b>
+          <small>
+            {products[0] ? `${products[0][1]} cliques` : "Sem dados no período"}
+          </small>
+        </div>
+        <div>
+          <span>Marketplace líder</span>
+          <b>{markets[0]?.[0] || "—"}</b>
+          <small>
+            {markets[0] ? `${markets[0][1]} cliques` : "Sem dados no período"}
+          </small>
+        </div>
+      </div>
+      <div className="analytics-grid">
+        <article className="click-chart-card">
+          <div className="analytics-card-head">
+            <div>
+              <h3>Cliques ao longo do tempo</h3>
+              <span>Últimos {chartData.length || 0} dias com atividade</span>
+            </div>
+            <b>{filtered.length}</b>
+          </div>
+          {chartData.length ? (
+            <div className="click-chart">
+              {chartData.map(([date, value]) => (
+                <div
+                  className="chart-column"
+                  key={date}
+                  title={`${new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR")}: ${value} cliques`}
+                >
+                  <span>{value}</span>
+                  <i
+                    style={{
+                      height: `${Math.max(8, (value / chartMax) * 100)}%`,
+                    }}
+                  />
+                  <small>
+                    {new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                    })}
+                  </small>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyAnalytics />
+          )}
+        </article>
+        <article className="market-ranking">
+          <div className="analytics-card-head">
+            <div>
+              <h3>Marketplaces</h3>
+              <span>Distribuição de cliques</span>
+            </div>
+          </div>
+          {markets.length ? (
+            <div className="market-bars">
+              {markets.map(([name, value]) => (
+                <div key={name}>
+                  <span>
+                    <b>{name}</b>
+                    <strong>{value}</strong>
+                  </span>
+                  <i>
+                    <b style={{ width: `${(value / marketMax) * 100}%` }} />
+                  </i>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyAnalytics />
+          )}
+        </article>
+      </div>
+      <article className="link-ranking">
+        <div className="analytics-card-head">
+          <div>
+            <h3>Cliques por produto e link</h3>
+            <span>Ranking detalhado de cada anúncio publicado</span>
+          </div>
+        </div>
+        {links.length ? (
+          <div className="link-ranking-table">
+            <div className="link-ranking-row link-ranking-header">
+              <span>Posição</span>
+              <span>Produto</span>
+              <span>Marketplace</span>
+              <span>Cliques</span>
+              <span>Participação</span>
+            </div>
+            {links.map(([key, value], index) => {
+              const [product, market] = key.split("|||");
+              return (
+                <div className="link-ranking-row" key={key}>
+                  <span>#{String(index + 1).padStart(2, "0")}</span>
+                  <span>
+                    <b>{product}</b>
+                  </span>
+                  <span>
+                    <i>{market.slice(0, 2).toUpperCase()}</i>
+                    {market}
+                  </span>
+                  <strong>{value}</strong>
+                  <span>
+                    {filtered.length
+                      ? Math.round((value / filtered.length) * 100)
+                      : 0}
+                    %
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyAnalytics />
+        )}
+      </article>
+    </section>
+  );
 }
 
-function EmptyAnalytics(){return <div className="analytics-empty"><span>↗</span><b>Aguardando os primeiros cliques</b><small>Os acessos aos marketplaces aparecerão aqui.</small></div>}
+function EmptyAnalytics() {
+  return (
+    <div className="analytics-empty">
+      <span>↗</span>
+      <b>Aguardando os primeiros cliques</b>
+      <small>Os acessos aos marketplaces aparecerão aqui.</small>
+    </div>
+  );
+}
 
 function CleanAnalytics({ clicks }) {
-  const today=new Date().toISOString().slice(0,10)
-  const before=days=>{const d=new Date();d.setDate(d.getDate()-(days-1));return d.toISOString().slice(0,10)}
-  const [period,setPeriod]=useState(30),[from,setFrom]=useState(before(30)),[to,setTo]=useState(today),[dashboard,setDashboard]=useState(null),[dashboardError,setDashboardError]=useState('')
-  const selectPeriod=days=>{setPeriod(days);setFrom(before(days==='all'?366:days));setTo(today)}
-  useEffect(()=>{if(APP_CONFIG.dataSource!=='api')return;const earliest=before(366);if(from<earliest){setFrom(earliest);return}if(from>to){setFrom(to);return}let current=true;setDashboardError('');analyticsService.getDashboard(from,to).then(value=>current&&setDashboard(value)).catch(error=>current&&setDashboardError(error.message));return()=>{current=false}},[from,to])
-  const localData=useMemo(()=>clicks.filter(c=>c.timestamp.slice(0,10)>=from&&c.timestamp.slice(0,10)<=to),[clicks,from,to])
-  const rank=key=>Object.entries(localData.reduce((acc,item)=>{const value=key(item);acc[value]=(acc[value]||0)+1;return acc},{})).sort((a,b)=>b[1]-a[1])
-  const apiRank=items=>(items||[]).map(item=>[item.name||item.productName||item.marketplaceName||'Sem nome',Number(item.clicks||0)]).sort((a,b)=>b[1]-a[1])
-  const productRank=dashboard?apiRank(dashboard.products?.length?dashboard.products:dashboard.summary?.topProduct?[dashboard.summary.topProduct]:[]):rank(c=>c.productName),marketRank=dashboard?apiRank(dashboard.marketplaces?.length?dashboard.marketplaces:dashboard.summary?.topMarketplace?[dashboard.summary.topMarketplace]:[]):rank(c=>c.marketplace),linkRank=dashboard?[]:rank(c=>`${c.productName}|||${c.marketplace}|||${c.url}`)
-  const daily=dashboard?(dashboard.timeseries||[]).map(item=>[item.date.slice(0,10),Number(item.clicks||0)]):Object.entries(localData.reduce((acc,item)=>{const day=item.timestamp.slice(0,10);acc[day]=(acc[day]||0)+1;return acc},{})).sort((a,b)=>a[0].localeCompare(b[0])).slice(-30)
-  const totalClicks=dashboard?.summary?.totalClicks??localData.length
-  const data={length:totalClicks}
-  const maxDay=Math.max(...daily.map(([,v])=>v),1),maxMarket=Math.max(...marketRank.map(([,v])=>v),1)
-  if(APP_CONFIG.dataSource==='api'&&!dashboard&&!dashboardError)return <div className="app-loading"><span/><p>Carregando indicadores...</p></div>
-  if(dashboardError)return <div className="analytics-empty"><b>Não foi possível carregar os indicadores</b><small>{dashboardError}</small></div>
-  return <><div className="clean-filter"><div className="period-tabs">{[[7,'7 dias'],[30,'30 dias'],[90,'90 dias'],['all','Todo período']].map(([value,label])=><button key={value} className={period===value?'active':''} onClick={()=>selectPeriod(value)}>{label}</button>)}</div><div className="custom-dates"><label>De<input type="date" value={from} onChange={e=>{setFrom(e.target.value);setPeriod('custom')}}/></label><span>até</span><label>Até<input type="date" value={to} max={today} onChange={e=>{setTo(e.target.value);setPeriod('custom')}}/></label></div></div><div className="clean-kpis"><article><span>Cliques no período</span><b>{data.length}</b><small>saídas para marketplaces</small></article><article><span>Produto líder</span><b>{productRank[0]?.[0]||'Sem dados'}</b><small>{productRank[0]?`${productRank[0][1]} cliques no período`:'Aguardando cliques'}</small></article><article><span>Canal líder</span><b>{marketRank[0]?.[0]||'Sem dados'}</b><small>{marketRank[0]?`${Math.round(marketRank[0][1]/data.length*100)}% dos cliques`:'Aguardando cliques'}</small></article><article><span>Produtos acessados</span><b>{productRank.length}</b><small>produtos diferentes</small></article></div><section className="clean-chart-card"><div className="clean-section-head"><div><h2>Evolução dos cliques</h2><p>Quantidade de acessos enviados aos marketplaces por dia.</p></div><strong>{data.length}<small>total no período</small></strong></div>{daily.length?<div className="clean-chart">{daily.map(([date,value])=><div key={date} className="clean-bar" title={`${date}: ${value} cliques`}><span>{value}</span><i style={{height:`${Math.max(7,value/maxDay*100)}%`}}/><small>{new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</small></div>)}</div>:<EmptyAnalytics/>}</section><div className="clean-rank-grid"><section className="clean-rank-card"><div className="clean-section-head"><div><h2>Produtos mais clicados</h2><p>Interesse total, somando todos os canais.</p></div></div>{productRank.length?<ol>{productRank.slice(0,5).map(([name,value],index)=><li key={name}><span><i>{index+1}</i><b>{name}</b></span><strong>{value}<small>cliques</small></strong><em><i style={{width:`${value/productRank[0][1]*100}%`}}/></em></li>)}</ol>:<EmptyAnalytics/>}</section><section className="clean-rank-card"><div className="clean-section-head"><div><h2>Marketplaces</h2><p>Distribuição dos acessos por canal.</p></div></div>{marketRank.length?<div className="clean-markets">{marketRank.map(([name,value])=><div key={name}><span><i>{name.slice(0,2).toUpperCase()}</i><b>{name}</b></span><strong>{value}<small>{Math.round(value/data.length*100)}%</small></strong><em><i style={{width:`${value/maxMarket*100}%`}}/></em></div>)}</div>:<EmptyAnalytics/>}</section></div><section className="clean-links"><div className="clean-section-head"><div><h2>Desempenho por anúncio</h2><p>Cada linha representa um link específico publicado em um marketplace.</p></div><span>{linkRank.length} links com atividade</span></div>{linkRank.length?<div className="clean-links-table"><div className="clean-link-row clean-link-head"><span>Produto</span><span>Marketplace</span><span>Cliques</span><span>% do total</span></div>{linkRank.map(([key,value])=>{const [product,market,url]=key.split('|||');return <div className="clean-link-row" key={key}><span><b>{product}</b><small title={url}>{url}</small></span><span><i>{market.slice(0,2).toUpperCase()}</i>{market}</span><strong>{value}</strong><span>{Math.round(value/data.length*100)}%</span></div>})}</div>:<EmptyAnalytics/>}</section></>
+  const today = new Date().toISOString().slice(0, 10);
+  const before = (days) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (days - 1));
+    return d.toISOString().slice(0, 10);
+  };
+  const [period, setPeriod] = useState(30),
+    [from, setFrom] = useState(before(30)),
+    [to, setTo] = useState(today),
+    [dashboard, setDashboard] = useState(null),
+    [dashboardError, setDashboardError] = useState("");
+  const selectPeriod = (days) => {
+    setPeriod(days);
+    setFrom(before(days === "all" ? 366 : days));
+    setTo(today);
+  };
+  useEffect(() => {
+    if (APP_CONFIG.dataSource !== "api") return;
+    const earliest = before(366);
+    if (from < earliest) {
+      setFrom(earliest);
+      return;
+    }
+    if (from > to) {
+      setFrom(to);
+      return;
+    }
+    let current = true;
+    setDashboardError("");
+    analyticsService
+      .getDashboard(from, to)
+      .then((value) => current && setDashboard(value))
+      .catch((error) => current && setDashboardError(error.message));
+    return () => {
+      current = false;
+    };
+  }, [from, to]);
+  const localData = useMemo(
+    () =>
+      clicks.filter(
+        (c) =>
+          c.timestamp.slice(0, 10) >= from && c.timestamp.slice(0, 10) <= to,
+      ),
+    [clicks, from, to],
+  );
+  const rank = (key) =>
+    Object.entries(
+      localData.reduce((acc, item) => {
+        const value = key(item);
+        acc[value] = (acc[value] || 0) + 1;
+        return acc;
+      }, {}),
+    ).sort((a, b) => b[1] - a[1]);
+  const apiRank = (items) =>
+    (items || [])
+      .map((item) => [
+        item.name || item.productName || item.marketplaceName || "Sem nome",
+        Number(item.clicks || 0),
+      ])
+      .sort((a, b) => b[1] - a[1]);
+  const productRank = dashboard
+      ? apiRank(
+          dashboard.products?.length
+            ? dashboard.products
+            : dashboard.summary?.topProduct
+              ? [dashboard.summary.topProduct]
+              : [],
+        )
+      : rank((c) => c.productName),
+    marketRank = dashboard
+      ? apiRank(
+          dashboard.marketplaces?.length
+            ? dashboard.marketplaces
+            : dashboard.summary?.topMarketplace
+              ? [dashboard.summary.topMarketplace]
+              : [],
+        )
+      : rank((c) => c.marketplace),
+    linkRank = dashboard
+      ? []
+      : rank((c) => `${c.productName}|||${c.marketplace}|||${c.url}`);
+  const daily = dashboard
+    ? (dashboard.timeseries || []).map((item) => [
+        item.date.slice(0, 10),
+        Number(item.clicks || 0),
+      ])
+    : Object.entries(
+        localData.reduce((acc, item) => {
+          const day = item.timestamp.slice(0, 10);
+          acc[day] = (acc[day] || 0) + 1;
+          return acc;
+        }, {}),
+      )
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .slice(-30);
+  const totalClicks = dashboard?.summary?.totalClicks ?? localData.length;
+  const data = { length: totalClicks };
+  const maxDay = Math.max(...daily.map(([, v]) => v), 1),
+    maxMarket = Math.max(...marketRank.map(([, v]) => v), 1);
+  if (APP_CONFIG.dataSource === "api" && !dashboard && !dashboardError)
+    return (
+      <div className="app-loading">
+        <span />
+        <p>Carregando indicadores...</p>
+      </div>
+    );
+  if (dashboardError)
+    return (
+      <div className="analytics-empty">
+        <b>Não foi possível carregar os indicadores</b>
+        <small>{dashboardError}</small>
+      </div>
+    );
+  return (
+    <>
+      <div className="clean-filter">
+        <div className="period-tabs">
+          {[
+            [7, "7 dias"],
+            [30, "30 dias"],
+            [90, "90 dias"],
+            ["all", "Todo período"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              className={period === value ? "active" : ""}
+              onClick={() => selectPeriod(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="custom-dates">
+          <label>
+            De
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => {
+                setFrom(e.target.value);
+                setPeriod("custom");
+              }}
+            />
+          </label>
+          <span>até</span>
+          <label>
+            Até
+            <input
+              type="date"
+              value={to}
+              max={today}
+              onChange={(e) => {
+                setTo(e.target.value);
+                setPeriod("custom");
+              }}
+            />
+          </label>
+        </div>
+      </div>
+      <div className="clean-kpis">
+        <article>
+          <span>Cliques no período</span>
+          <b>{data.length}</b>
+          <small>saídas para marketplaces</small>
+        </article>
+        <article>
+          <span>Produto líder</span>
+          <b>{productRank[0]?.[0] || "Sem dados"}</b>
+          <small>
+            {productRank[0]
+              ? `${productRank[0][1]} cliques no período`
+              : "Aguardando cliques"}
+          </small>
+        </article>
+        <article>
+          <span>Canal líder</span>
+          <b>{marketRank[0]?.[0] || "Sem dados"}</b>
+          <small>
+            {marketRank[0]
+              ? `${Math.round((marketRank[0][1] / data.length) * 100)}% dos cliques`
+              : "Aguardando cliques"}
+          </small>
+        </article>
+        <article>
+          <span>Produtos acessados</span>
+          <b>{productRank.length}</b>
+          <small>produtos diferentes</small>
+        </article>
+      </div>
+      <section className="clean-chart-card">
+        <div className="clean-section-head">
+          <div>
+            <h2>Evolução dos cliques</h2>
+            <p>Quantidade de acessos enviados aos marketplaces por dia.</p>
+          </div>
+          <strong>
+            {data.length}
+            <small>total no período</small>
+          </strong>
+        </div>
+        {daily.length ? (
+          <div className="clean-chart">
+            {daily.map(([date, value]) => (
+              <div
+                key={date}
+                className="clean-bar"
+                title={`${date}: ${value} cliques`}
+              >
+                <span>{value}</span>
+                <i
+                  style={{ height: `${Math.max(7, (value / maxDay) * 100)}%` }}
+                />
+                <small>
+                  {new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                  })}
+                </small>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyAnalytics />
+        )}
+      </section>
+      <div className="clean-rank-grid">
+        <section className="clean-rank-card">
+          <div className="clean-section-head">
+            <div>
+              <h2>Produtos mais clicados</h2>
+              <p>Interesse total, somando todos os canais.</p>
+            </div>
+          </div>
+          {productRank.length ? (
+            <ol>
+              {productRank.slice(0, 5).map(([name, value], index) => (
+                <li key={name}>
+                  <span>
+                    <i>{index + 1}</i>
+                    <b>{name}</b>
+                  </span>
+                  <strong>
+                    {value}
+                    <small>cliques</small>
+                  </strong>
+                  <em>
+                    <i
+                      style={{ width: `${(value / productRank[0][1]) * 100}%` }}
+                    />
+                  </em>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <EmptyAnalytics />
+          )}
+        </section>
+        <section className="clean-rank-card">
+          <div className="clean-section-head">
+            <div>
+              <h2>Marketplaces</h2>
+              <p>Distribuição dos acessos por canal.</p>
+            </div>
+          </div>
+          {marketRank.length ? (
+            <div className="clean-markets">
+              {marketRank.map(([name, value]) => (
+                <div key={name}>
+                  <span>
+                    <i>{name.slice(0, 2).toUpperCase()}</i>
+                    <b>{name}</b>
+                  </span>
+                  <strong>
+                    {value}
+                    <small>{Math.round((value / data.length) * 100)}%</small>
+                  </strong>
+                  <em>
+                    <i style={{ width: `${(value / maxMarket) * 100}%` }} />
+                  </em>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyAnalytics />
+          )}
+        </section>
+      </div>
+      <section className="clean-links">
+        <div className="clean-section-head">
+          <div>
+            <h2>Desempenho por anúncio</h2>
+            <p>
+              Cada linha representa um link específico publicado em um
+              marketplace.
+            </p>
+          </div>
+          <span>{linkRank.length} links com atividade</span>
+        </div>
+        {linkRank.length ? (
+          <div className="clean-links-table">
+            <div className="clean-link-row clean-link-head">
+              <span>Produto</span>
+              <span>Marketplace</span>
+              <span>Cliques</span>
+              <span>% do total</span>
+            </div>
+            {linkRank.map(([key, value]) => {
+              const [product, market, url] = key.split("|||");
+              return (
+                <div className="clean-link-row" key={key}>
+                  <span>
+                    <b>{product}</b>
+                    <small title={url}>{url}</small>
+                  </span>
+                  <span>
+                    <i>{market.slice(0, 2).toUpperCase()}</i>
+                    {market}
+                  </span>
+                  <strong>{value}</strong>
+                  <span>{Math.round((value / data.length) * 100)}%</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyAnalytics />
+        )}
+      </section>
+    </>
+  );
 }
 
-function AnalyticsPage({ clicks,session,onLogout }) {
-  return <main className="clean-admin"><AdminSidebar active="dashboard" session={session} onLoggedOut={onLogout}/><section className="clean-analytics-content"><header className="clean-page-head"><div><span className="admin-kicker">ANALYTICS / VISÃO GERAL</span><h1>Desempenho</h1><p>Veja o que desperta mais interesse na sua vitrine.</p></div><a href="/" target="_blank">Abrir loja <span>↗</span></a></header><CleanAnalytics clicks={clicks}/></section></main>
+function AnalyticsPage({ clicks, session, onLogout }) {
+  return (
+    <main className="clean-admin">
+      <AdminSidebar
+        active="dashboard"
+        session={session}
+        onLoggedOut={onLogout}
+      />
+      <section className="clean-analytics-content">
+        <header className="clean-page-head">
+          <div>
+            <span className="admin-kicker">ANALYTICS / VISÃO GERAL</span>
+            <h1>Desempenho</h1>
+            <p>Veja o que desperta mais interesse na sua vitrine.</p>
+          </div>
+          <a href="/" target="_blank">
+            Abrir loja <span>↗</span>
+          </a>
+        </header>
+        <CleanAnalytics clicks={clicks} />
+      </section>
+    </main>
+  );
 }
 
 function CategoryModal({ onClose, onChanged }) {
-  const [items,setItems]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState('')
-  const [editing,setEditing]=useState(null),[name,setName]=useState(''),[active,setActive]=useState(true)
-  const load=async()=>{setLoading(true);setError('');try{setItems(await catalogService.listCategories({admin:true}))}catch(err){setError(err.message)}finally{setLoading(false)}}
-  useEffect(()=>{load();const close=event=>event.key==='Escape'&&onClose();document.addEventListener('keydown',close);return()=>document.removeEventListener('keydown',close)},[])
-  const reset=()=>{setEditing(null);setName('');setActive(true);setError('')}
-  const submit=async event=>{event.preventDefault();setSaving(true);setError('');try{const category=editing?await catalogService.updateCategory({id:editing.id,name:name.trim(),active}):await catalogService.createCategory(name.trim(),active);await load();await onChanged(category);reset()}catch(err){setError(err.status===404?'As rotas administrativas de categorias ainda não estão disponíveis na API.':err.message)}finally{setSaving(false)}}
-  const startEdit=category=>{setEditing(category);setName(category.name);setActive(category.active!==false);setError('')}
-  const remove=async category=>{if(!window.confirm(`Excluir a categoria “${category.name}”?`))return;setError('');try{await catalogService.deleteCategory(category.id);if(editing?.id===category.id)reset();await load();await onChanged()}catch(err){setError(err.message)}}
-  return <div className="admin-modal-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><div className="category-manager-modal" role="dialog" aria-modal="true" aria-labelledby="category-modal-title"><div className="modal-head"><div><span className="admin-kicker">CATÁLOGO / CATEGORIAS</span><h2 id="category-modal-title">Gerenciar categorias</h2></div><button type="button" onClick={onClose} aria-label="Fechar">×</button></div><div className="category-manager-body"><form className="category-form" onSubmit={submit}><span className="admin-kicker">{editing?'EDITAR CATEGORIA':'NOVA CATEGORIA'}</span><label>Nome<input autoFocus minLength="2" maxLength="80" value={name} onChange={event=>setName(event.target.value)} placeholder="Ex.: Iluminação" required/></label><label className="status-toggle"><input type="checkbox" checked={active} onChange={event=>setActive(event.target.checked)}/><i/><span><b>Categoria ativa</b><small>Disponível no cadastro de produtos</small></span></label>{error&&<div className="form-error">{error}</div>}<div className="category-form-actions">{editing&&<button type="button" className="admin-secondary" onClick={reset}>Cancelar edição</button>}<button type="submit" className="admin-primary" disabled={saving}>{saving?'Salvando...':editing?'Salvar alterações':'Criar categoria'}</button></div></form><section className="category-manager-list"><div><b>Categorias cadastradas</b><small>{items.length} itens</small></div>{loading?<p className="admin-empty">Carregando...</p>:items.length?items.map(category=><article key={category.id}><span><b>{category.name}</b><small>{category.slug}</small></span><em className={category.active===false?'inactive':''}>{category.active===false?'Inativa':'Ativa'}</em><button type="button" onClick={()=>startEdit(category)}>Editar</button><button type="button" className="danger" onClick={()=>remove(category)}>Excluir</button></article>):<p className="admin-empty">Nenhuma categoria cadastrada.</p>}</section></div><div className="modal-actions"><button type="button" className="admin-secondary" onClick={onClose}>Concluir</button></div></div></div>
+  const [items, setItems] = useState([]),
+    [loading, setLoading] = useState(true),
+    [saving, setSaving] = useState(false),
+    [error, setError] = useState("");
+  const [editing, setEditing] = useState(null),
+    [name, setName] = useState(""),
+    [active, setActive] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      setItems(await catalogService.listCategories({ admin: true }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    load();
+    const close = (event) => event.key === "Escape" && onClose();
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, []);
+  const reset = () => {
+    setEditing(null);
+    setName("");
+    setActive(true);
+    setError("");
+  };
+  const submit = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const category = editing
+        ? await catalogService.updateCategory({
+            id: editing.id,
+            name: name.trim(),
+            active,
+          })
+        : await catalogService.createCategory(name.trim(), active);
+      await load();
+      await onChanged(category);
+      reset();
+    } catch (err) {
+      setError(
+        err.status === 404
+          ? "As rotas administrativas de categorias ainda não estão disponíveis na API."
+          : err.message,
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+  const startEdit = (category) => {
+    setEditing(category);
+    setName(category.name);
+    setActive(category.active !== false);
+    setError("");
+  };
+  const remove = async (category) => {
+    if (!window.confirm(`Excluir a categoria “${category.name}”?`)) return;
+    setError("");
+    try {
+      await catalogService.deleteCategory(category.id);
+      if (editing?.id === category.id) reset();
+      await load();
+      await onChanged();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+  return (
+    <div
+      className="admin-modal-backdrop"
+      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+    >
+      <div
+        className="category-manager-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="category-modal-title"
+      >
+        <div className="modal-head">
+          <div>
+            <span className="admin-kicker">CATÁLOGO / CATEGORIAS</span>
+            <h2 id="category-modal-title">Gerenciar categorias</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Fechar">
+            ×
+          </button>
+        </div>
+        <div className="category-manager-body">
+          <form className="category-form" onSubmit={submit}>
+            <span className="admin-kicker">
+              {editing ? "EDITAR CATEGORIA" : "NOVA CATEGORIA"}
+            </span>
+            <label>
+              Nome
+              <input
+                autoFocus
+                minLength="2"
+                maxLength="80"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Ex.: Iluminação"
+                required
+              />
+            </label>
+            <label className="status-toggle">
+              <input
+                type="checkbox"
+                checked={active}
+                onChange={(event) => setActive(event.target.checked)}
+              />
+              <i />
+              <span>
+                <b>Categoria ativa</b>
+                <small>Disponível no cadastro de produtos</small>
+              </span>
+            </label>
+            {error && <div className="form-error">{error}</div>}
+            <div className="category-form-actions">
+              {editing && (
+                <button
+                  type="button"
+                  className="admin-secondary"
+                  onClick={reset}
+                >
+                  Cancelar edição
+                </button>
+              )}
+              <button type="submit" className="admin-primary" disabled={saving}>
+                {saving
+                  ? "Salvando..."
+                  : editing
+                    ? "Salvar alterações"
+                    : "Criar categoria"}
+              </button>
+            </div>
+          </form>
+          <section className="category-manager-list">
+            <div>
+              <b>Categorias cadastradas</b>
+              <small>{items.length} itens</small>
+            </div>
+            {loading ? (
+              <p className="admin-empty">Carregando...</p>
+            ) : items.length ? (
+              items.map((category) => (
+                <article key={category.id}>
+                  <span>
+                    <b>{category.name}</b>
+                    <small>{category.slug}</small>
+                  </span>
+                  <em className={category.active === false ? "inactive" : ""}>
+                    {category.active === false ? "Inativa" : "Ativa"}
+                  </em>
+                  <button type="button" onClick={() => startEdit(category)}>
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() => remove(category)}
+                  >
+                    Excluir
+                  </button>
+                </article>
+              ))
+            ) : (
+              <p className="admin-empty">Nenhuma categoria cadastrada.</p>
+            )}
+          </section>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="admin-secondary" onClick={onClose}>
+            Concluir
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function MarketplaceModal({ onClose, onChanged }) {
-  const [items,setItems]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState('')
-  const [editing,setEditing]=useState(null),[name,setName]=useState(''),[active,setActive]=useState(true)
-  const load=async()=>{setLoading(true);setError('');try{setItems(await catalogService.listMarketplaces({admin:true}))}catch(err){setError(err.message)}finally{setLoading(false)}}
-  useEffect(()=>{load();const close=event=>event.key==='Escape'&&onClose();document.addEventListener('keydown',close);return()=>document.removeEventListener('keydown',close)},[])
-  const reset=()=>{setEditing(null);setName('');setActive(true);setError('')}
-  const submit=async event=>{event.preventDefault();setSaving(true);setError('');try{const marketplace=editing?await catalogService.updateMarketplace({id:editing.id,name:name.trim(),active}):await catalogService.createMarketplace({name:name.trim(),active});await load();await onChanged(marketplace);reset()}catch(err){setError(err.status===404?'Marketplace não encontrado.':err.message)}finally{setSaving(false)}}
-  const startEdit=marketplace=>{setEditing(marketplace);setName(marketplace.name);setActive(marketplace.active!==false);setError('')}
-  const remove=async marketplace=>{if(!window.confirm(`Excluir o marketplace “${marketplace.name}”?`))return;setError('');try{await catalogService.deleteMarketplace(marketplace.id);if(editing?.id===marketplace.id)reset();await load();await onChanged()}catch(err){setError(err.message)}}
-  return <div className="admin-modal-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><div className="category-manager-modal" role="dialog" aria-modal="true" aria-labelledby="marketplace-modal-title"><div className="modal-head"><div><span className="admin-kicker">CATÁLOGO / MARKETPLACES</span><h2 id="marketplace-modal-title">Gerenciar marketplaces</h2></div><button type="button" onClick={onClose} aria-label="Fechar">×</button></div><div className="category-manager-body"><form className="category-form" onSubmit={submit}><span className="admin-kicker">{editing?'EDITAR MARKETPLACE':'NOVO MARKETPLACE'}</span><label>Nome<input autoFocus minLength="2" maxLength="80" value={name} onChange={event=>setName(event.target.value)} placeholder="Ex.: Amazon" required/></label><label className="status-toggle"><input type="checkbox" checked={active} onChange={event=>setActive(event.target.checked)}/><i/><span><b>Marketplace ativo</b><small>Disponível nos anúncios de produtos</small></span></label>{error&&<div className="form-error">{error}</div>}<div className="category-form-actions">{editing&&<button type="button" className="admin-secondary" onClick={reset}>Cancelar edição</button>}<button type="submit" className="admin-primary" disabled={saving}>{saving?'Salvando...':editing?'Salvar alterações':'Criar marketplace'}</button></div></form><section className="category-manager-list"><div><b>Marketplaces cadastrados</b><small>{items.length} itens</small></div>{loading?<p className="admin-empty">Carregando...</p>:items.length?items.map(marketplace=><article key={marketplace.id}><span><b>{marketplace.name}</b></span><em className={marketplace.active===false?'inactive':''}>{marketplace.active===false?'Inativo':'Ativo'}</em><button type="button" onClick={()=>startEdit(marketplace)}>Editar</button><button type="button" className="danger" onClick={()=>remove(marketplace)}>Excluir</button></article>):<p className="admin-empty">Nenhum marketplace cadastrado.</p>}</section></div><div className="modal-actions"><button type="button" className="admin-secondary" onClick={onClose}>Concluir</button></div></div></div>
+  const [items, setItems] = useState([]),
+    [loading, setLoading] = useState(true),
+    [saving, setSaving] = useState(false),
+    [error, setError] = useState("");
+  const [editing, setEditing] = useState(null),
+    [name, setName] = useState(""),
+    [active, setActive] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      setItems(await catalogService.listMarketplaces({ admin: true }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    load();
+    const close = (event) => event.key === "Escape" && onClose();
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, []);
+  const reset = () => {
+    setEditing(null);
+    setName("");
+    setActive(true);
+    setError("");
+  };
+  const submit = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const marketplace = editing
+        ? await catalogService.updateMarketplace({
+            id: editing.id,
+            name: name.trim(),
+            active,
+          })
+        : await catalogService.createMarketplace({ name: name.trim(), active });
+      await load();
+      await onChanged(marketplace);
+      reset();
+    } catch (err) {
+      setError(
+        err.status === 404 ? "Marketplace não encontrado." : err.message,
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+  const startEdit = (marketplace) => {
+    setEditing(marketplace);
+    setName(marketplace.name);
+    setActive(marketplace.active !== false);
+    setError("");
+  };
+  const remove = async (marketplace) => {
+    if (!window.confirm(`Excluir o marketplace “${marketplace.name}”?`)) return;
+    setError("");
+    try {
+      await catalogService.deleteMarketplace(marketplace.id);
+      if (editing?.id === marketplace.id) reset();
+      await load();
+      await onChanged();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+  return (
+    <div
+      className="admin-modal-backdrop"
+      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+    >
+      <div
+        className="category-manager-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="marketplace-modal-title"
+      >
+        <div className="modal-head">
+          <div>
+            <span className="admin-kicker">CATÁLOGO / MARKETPLACES</span>
+            <h2 id="marketplace-modal-title">Gerenciar marketplaces</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Fechar">
+            ×
+          </button>
+        </div>
+        <div className="category-manager-body">
+          <form className="category-form" onSubmit={submit}>
+            <span className="admin-kicker">
+              {editing ? "EDITAR MARKETPLACE" : "NOVO MARKETPLACE"}
+            </span>
+            <label>
+              Nome
+              <input
+                autoFocus
+                minLength="2"
+                maxLength="80"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Ex.: Amazon"
+                required
+              />
+            </label>
+            <label className="status-toggle">
+              <input
+                type="checkbox"
+                checked={active}
+                onChange={(event) => setActive(event.target.checked)}
+              />
+              <i />
+              <span>
+                <b>Marketplace ativo</b>
+                <small>Disponível nos anúncios de produtos</small>
+              </span>
+            </label>
+            {error && <div className="form-error">{error}</div>}
+            <div className="category-form-actions">
+              {editing && (
+                <button
+                  type="button"
+                  className="admin-secondary"
+                  onClick={reset}
+                >
+                  Cancelar edição
+                </button>
+              )}
+              <button type="submit" className="admin-primary" disabled={saving}>
+                {saving
+                  ? "Salvando..."
+                  : editing
+                    ? "Salvar alterações"
+                    : "Criar marketplace"}
+              </button>
+            </div>
+          </form>
+          <section className="category-manager-list">
+            <div>
+              <b>Marketplaces cadastrados</b>
+              <small>{items.length} itens</small>
+            </div>
+            {loading ? (
+              <p className="admin-empty">Carregando...</p>
+            ) : items.length ? (
+              items.map((marketplace) => (
+                <article key={marketplace.id}>
+                  <span>
+                    <b>{marketplace.name}</b>
+                  </span>
+                  <em
+                    className={marketplace.active === false ? "inactive" : ""}
+                  >
+                    {marketplace.active === false ? "Inativo" : "Ativo"}
+                  </em>
+                  <button type="button" onClick={() => startEdit(marketplace)}>
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() => remove(marketplace)}
+                  >
+                    Excluir
+                  </button>
+                </article>
+              ))
+            ) : (
+              <p className="admin-empty">Nenhum marketplace cadastrado.</p>
+            )}
+          </section>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="admin-secondary" onClick={onClose}>
+            Concluir
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function UserFormModal({ user, permissions, currentUserId, protectAdmin, onClose, onSaved }) {
-  const [form,setForm]=useState(()=>({name:user?.name||'',email:user?.email||'',password:'',idPermission:String(user?.idPermission??permissions[0]?.idPermission??''),active:user?.active!==false}))
-  const [saving,setSaving]=useState(false),[error,setError]=useState('')
-  const submittingRef=useRef(false)
-  const locksAdministrativeAccess=Boolean(user&&(user.id===currentUserId||protectAdmin))
-  const set=(field,value)=>setForm(current=>({...current,[field]:value}))
-  const submit=async event=>{event.preventDefault();if(submittingRef.current)return;submittingRef.current=true;setSaving(true);setError('');try{const payload={name:form.name.trim(),email:form.email.trim(),idPermission:Number(form.idPermission),active:user?form.active:true};if(form.password)payload.password=form.password;if(user)await userService.update(user.id,payload);else await userService.create(payload);await onSaved(user?'Usuário atualizado com sucesso.':'Usuário criado com sucesso.')}catch(err){submittingRef.current=false;setError(err.message);setSaving(false)}}
-  return <div className="admin-modal-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><div className="user-form-modal" role="dialog" aria-modal="true" aria-labelledby="user-form-title"><div className="modal-head"><div><span className="admin-kicker">ACESSOS / {user?'EDIÇÃO':'NOVO'}</span><h2 id="user-form-title">{user?'Editar usuário':'Criar usuário'}</h2></div><button type="button" onClick={onClose} aria-label="Fechar">×</button></div><form className="user-form" onSubmit={submit}><div className="user-form-grid"><label>Nome<input autoFocus minLength="2" maxLength="120" value={form.name} onChange={event=>set('name',event.target.value)} required/></label><label>E-mail<input type="email" maxLength="254" value={form.email} onChange={event=>set('email',event.target.value)} required/></label><label className={!user?'field-wide':undefined}>Permissão<select value={form.idPermission} onChange={event=>set('idPermission',event.target.value)} disabled={locksAdministrativeAccess} required><option value="" disabled>Selecione uma permissão</option>{permissions.map(item=><option key={item.idPermission} value={item.idPermission}>{item.permission}</option>)}</select>{locksAdministrativeAccess&&<small>A permissão administrativa desta conta está protegida.</small>}</label>{user&&<label className="status-toggle user-active-toggle"><input type="checkbox" checked={form.active} disabled={locksAdministrativeAccess} onChange={event=>set('active',event.target.checked)}/><i/><span><b>Usuário ativo</b><small>{locksAdministrativeAccess?'Esta conta administrativa não pode ser desativada':form.active?'Acesso liberado':'Acesso bloqueado'}</small></span></label>}<label className="field-wide">{user?'Nova senha (opcional)':'Senha'}<input type="password" minLength="12" maxLength="128" value={form.password} onChange={event=>set('password',event.target.value)} required={!user} autoComplete="new-password" placeholder={user?'Deixe vazio para manter a senha atual':'Mínimo de 12 caracteres'}/></label></div>{error&&<div className="form-error user-form-error">{error}</div>}<div className="modal-actions"><button type="button" className="admin-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="admin-primary" disabled={saving||!form.idPermission}>{saving?'Salvando...':user?'Salvar alterações':'Criar usuário'}</button></div></form></div></div>
+function UserFormModal({
+  user,
+  permissions,
+  currentUserId,
+  protectAdmin,
+  onClose,
+  onSaved,
+}) {
+  const [form, setForm] = useState(() => ({
+    name: user?.name || "",
+    email: user?.email || "",
+    password: "",
+    idPermission: String(
+      user?.idPermission ?? permissions[0]?.idPermission ?? "",
+    ),
+    active: user?.active !== false,
+  }));
+  const [saving, setSaving] = useState(false),
+    [error, setError] = useState("");
+  const submittingRef = useRef(false);
+  const locksAdministrativeAccess = Boolean(
+    user && (user.id === currentUserId || protectAdmin),
+  );
+  const set = (field, value) =>
+    setForm((current) => ({ ...current, [field]: value }));
+  const submit = async (event) => {
+    event.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSaving(true);
+    setError("");
+    try {
+      const payload = {
+        name: form.name.trim(),
+        email: form.email.trim(),
+        idPermission: Number(form.idPermission),
+        active: user ? form.active : true,
+      };
+      if (form.password) payload.password = form.password;
+      if (user) await userService.update(user.id, payload);
+      else await userService.create(payload);
+      await onSaved(
+        user
+          ? "Usuário atualizado com sucesso."
+          : "Usuário criado com sucesso.",
+      );
+    } catch (err) {
+      submittingRef.current = false;
+      setError(err.message);
+      setSaving(false);
+    }
+  };
+  return (
+    <div
+      className="admin-modal-backdrop"
+      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+    >
+      <div
+        className="user-form-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="user-form-title"
+      >
+        <div className="modal-head">
+          <div>
+            <span className="admin-kicker">
+              ACESSOS / {user ? "EDIÇÃO" : "NOVO"}
+            </span>
+            <h2 id="user-form-title">
+              {user ? "Editar usuário" : "Criar usuário"}
+            </h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Fechar">
+            ×
+          </button>
+        </div>
+        <form className="user-form" onSubmit={submit}>
+          <div className="user-form-grid">
+            <label>
+              Nome
+              <input
+                autoFocus
+                minLength="2"
+                maxLength="120"
+                value={form.name}
+                onChange={(event) => set("name", event.target.value)}
+                required
+              />
+            </label>
+            <label>
+              E-mail
+              <input
+                type="email"
+                maxLength="254"
+                value={form.email}
+                onChange={(event) => set("email", event.target.value)}
+                required
+              />
+            </label>
+            <label className={!user ? "field-wide" : undefined}>
+              Permissão
+              <select
+                value={form.idPermission}
+                onChange={(event) => set("idPermission", event.target.value)}
+                disabled={locksAdministrativeAccess}
+                required
+              >
+                <option value="" disabled>
+                  Selecione uma permissão
+                </option>
+                {permissions.map((item) => (
+                  <option key={item.idPermission} value={item.idPermission}>
+                    {item.permission}
+                  </option>
+                ))}
+              </select>
+              {locksAdministrativeAccess && (
+                <small>
+                  A permissão administrativa desta conta está protegida.
+                </small>
+              )}
+            </label>
+            {user && (
+              <label className="status-toggle user-active-toggle">
+                <input
+                  type="checkbox"
+                  checked={form.active}
+                  disabled={locksAdministrativeAccess}
+                  onChange={(event) => set("active", event.target.checked)}
+                />
+                <i />
+                <span>
+                  <b>Usuário ativo</b>
+                  <small>
+                    {locksAdministrativeAccess
+                      ? "Esta conta administrativa não pode ser desativada"
+                      : form.active
+                        ? "Acesso liberado"
+                        : "Acesso bloqueado"}
+                  </small>
+                </span>
+              </label>
+            )}
+            <label className="field-wide">
+              {user ? "Nova senha (opcional)" : "Senha"}
+              <input
+                type="password"
+                minLength="12"
+                maxLength="128"
+                value={form.password}
+                onChange={(event) => set("password", event.target.value)}
+                required={!user}
+                autoComplete="new-password"
+                placeholder={
+                  user
+                    ? "Deixe vazio para manter a senha atual"
+                    : "Mínimo de 12 caracteres"
+                }
+              />
+            </label>
+          </div>
+          {error && <div className="form-error user-form-error">{error}</div>}
+          <div className="modal-actions">
+            <button type="button" className="admin-secondary" onClick={onClose}>
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="admin-primary"
+              disabled={saving || !form.idPermission}
+            >
+              {saving
+                ? "Salvando..."
+                : user
+                  ? "Salvar alterações"
+                  : "Criar usuário"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 function UsersPage({ session, onLogout }) {
-  const canManageUsers=permissionAccess(session).manageUsers
-  const [users,setUsers]=useState([]),[permissions,setPermissions]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[query,setQuery]=useState(''),[editing,setEditing]=useState(null),[formOpen,setFormOpen]=useState(false),[blocking,setBlocking]=useState(null)
-  const load=async()=>{setLoading(true);setError('');try{const nextUsers=await userService.list();setUsers(nextUsers);if(canManageUsers)setPermissions(await userService.listPermissions())}catch(err){setError(err.message)}finally{setLoading(false)}}
-  useEffect(()=>{load()},[])
-  useEffect(()=>{if(!notice)return;const timeout=setTimeout(()=>setNotice(''),4500);return()=>clearTimeout(timeout)},[notice])
-  const saved=async message=>{setFormOpen(false);setEditing(null);setNotice(message);await load()}
-  const block=async()=>{if(!blocking)return;const name=blocking.name;try{await userService.block(blocking.id);setBlocking(null);setNotice(`${name} foi bloqueado com sucesso.`);await load()}catch(err){setError(err.message);setBlocking(null)}}
-  const activate=async user=>{try{await userService.update(user.id,{active:true});setNotice(`${user.name} foi reativado com sucesso.`);await load()}catch(err){setError(err.message)}}
-  const normalizedQuery=query.trim().toLocaleLowerCase('pt-BR')
-  const activeAdminCount=users.filter(user=>user.permission?.toLocaleLowerCase('pt-BR')==='admin'&&user.active).length
-  const isLastActiveAdmin=user=>user.permission?.toLocaleLowerCase('pt-BR')==='admin'&&user.active&&activeAdminCount===1
-  const visible=users.filter(user=>`${user.name} ${user.email} ${user.permission} ${user.active?'ativo':'bloqueado'}`.toLocaleLowerCase('pt-BR').includes(normalizedQuery))
-  return <main className="admin-shell users-admin">
-    <AdminSidebar active="users" session={session} onLoggedOut={onLogout}/>
-    <section className="admin-content">
-      <header className="admin-top"><div><span className="admin-kicker">PAINEL / ACESSOS</span><h1>Usuários</h1><p>{canManageUsers?'Gerencie contas, permissões e acessos administrativos.':'Consulte as contas e permissões cadastradas.'}</p></div>{canManageUsers&&<button className="admin-primary" disabled={!permissions.length} onClick={()=>{setEditing(null);setFormOpen(true)}}><PlusIcon/> Novo usuário</button>}</header>
-      <div className="admin-stats"><div><span>Total de usuários</span><b>{users.length}</b><small>contas cadastradas</small></div><div><span>Administradores ativos</span><b>{activeAdminCount}</b><small>com acesso ao painel</small></div><div><span>Contas bloqueadas</span><b>{users.filter(user=>!user.active).length}</b><small>sem acesso à conta</small></div></div>
-      <div className="admin-table-card"><div className="table-toolbar"><div><h2>Contas cadastradas</h2><span>{visible.length} usuários</span></div><label><SearchIcon/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Buscar usuário..."/></label></div>{error&&<div className="users-error"><span>{error}</span><button type="button" onClick={load}>Tentar novamente</button></div>}<div className="admin-table-wrap"><table className="admin-table users-table"><thead><tr><th>Usuário</th><th>Permissão</th><th>Status</th><th>Criado em</th>{canManageUsers&&<th>Ações</th>}</tr></thead><tbody>{visible.map(user=><tr key={user.id}><td><div className="user-identity"><i>{user.name.slice(0,2).toUpperCase()}</i><span><b>{user.name}</b><small>{user.email}</small></span>{user.id===session?.id&&<em>Você</em>}</div></td><td><span className={`permission-badge ${permissionName(user)==='admin'?'admin':''}`}>{user.permission}</span></td><td><span className={`status-pill ${user.active?'active':''}`}><i/>{user.active?'Ativo':'Bloqueado'}</span></td><td>{new Date(user.createdAt).toLocaleDateString('pt-BR')}</td>{canManageUsers&&<td><div className="user-actions"><button type="button" onClick={()=>{setEditing(user);setFormOpen(true)}}>Editar</button>{!user.active?<button type="button" onClick={()=>activate(user)}>Reativar</button>:user.id!==session?.id&&!isLastActiveAdmin(user)&&<button type="button" className="danger" onClick={()=>setBlocking(user)}>Bloquear</button>}</div></td>}</tr>)}</tbody></table>{loading?<div className="admin-empty">Carregando usuários...</div>:!visible.length&&<div className="admin-empty">Nenhum usuário encontrado.</div>}</div></div>
-    </section>
-    {notice&&<div className="admin-success-toast" role="status" aria-live="polite"><span>✓</span>{notice}<button type="button" onClick={()=>setNotice('')} aria-label="Fechar aviso">×</button></div>}
-    {canManageUsers&&formOpen&&<UserFormModal user={editing} permissions={permissions} currentUserId={session?.id} protectAdmin={editing&&isLastActiveAdmin(editing)} onClose={()=>{setFormOpen(false);setEditing(null)}} onSaved={saved}/>}
-    {canManageUsers&&blocking&&<div className="admin-modal-backdrop"><div className="confirm-modal"><div className="confirm-icon"><TrashIcon/></div><h2>Bloquear usuário?</h2><p>“{blocking.name}” perderá o acesso, mas seus dados serão preservados.</p><div><button className="admin-secondary" onClick={()=>setBlocking(null)}>Cancelar</button><button className="admin-danger" onClick={block}>Sim, bloquear</button></div></div></div>}
-  </main>
+  const canManageUsers = permissionAccess(session).manageUsers;
+  const [users, setUsers] = useState([]),
+    [permissions, setPermissions] = useState([]),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [query, setQuery] = useState(""),
+    [editing, setEditing] = useState(null),
+    [formOpen, setFormOpen] = useState(false),
+    [blocking, setBlocking] = useState(null);
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const nextUsers = await userService.list();
+      setUsers(nextUsers);
+      if (canManageUsers) setPermissions(await userService.listPermissions());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    load();
+  }, []);
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = setTimeout(() => setNotice(""), 4500);
+    return () => clearTimeout(timeout);
+  }, [notice]);
+  const saved = async (message) => {
+    setFormOpen(false);
+    setEditing(null);
+    setNotice(message);
+    await load();
+  };
+  const block = async () => {
+    if (!blocking) return;
+    const name = blocking.name;
+    try {
+      await userService.block(blocking.id);
+      setBlocking(null);
+      setNotice(`${name} foi bloqueado com sucesso.`);
+      await load();
+    } catch (err) {
+      setError(err.message);
+      setBlocking(null);
+    }
+  };
+  const activate = async (user) => {
+    try {
+      await userService.update(user.id, { active: true });
+      setNotice(`${user.name} foi reativado com sucesso.`);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+  const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
+  const activeAdminCount = users.filter(
+    (user) =>
+      user.permission?.toLocaleLowerCase("pt-BR") === "admin" && user.active,
+  ).length;
+  const isLastActiveAdmin = (user) =>
+    user.permission?.toLocaleLowerCase("pt-BR") === "admin" &&
+    user.active &&
+    activeAdminCount === 1;
+  const visible = users.filter((user) =>
+    `${user.name} ${user.email} ${user.permission} ${user.active ? "ativo" : "bloqueado"}`
+      .toLocaleLowerCase("pt-BR")
+      .includes(normalizedQuery),
+  );
+  return (
+    <main className="admin-shell users-admin">
+      <AdminSidebar active="users" session={session} onLoggedOut={onLogout} />
+      <section className="admin-content">
+        <header className="admin-top">
+          <div>
+            <span className="admin-kicker">PAINEL / ACESSOS</span>
+            <h1>Usuários</h1>
+            <p>
+              {canManageUsers
+                ? "Gerencie contas, permissões e acessos administrativos."
+                : "Consulte as contas e permissões cadastradas."}
+            </p>
+          </div>
+          {canManageUsers && (
+            <button
+              className="admin-primary"
+              disabled={!permissions.length}
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            >
+              <PlusIcon /> Novo usuário
+            </button>
+          )}
+        </header>
+        <div className="admin-stats">
+          <div>
+            <span>Total de usuários</span>
+            <b>{users.length}</b>
+            <small>contas cadastradas</small>
+          </div>
+          <div>
+            <span>Administradores ativos</span>
+            <b>{activeAdminCount}</b>
+            <small>com acesso ao painel</small>
+          </div>
+          <div>
+            <span>Contas bloqueadas</span>
+            <b>{users.filter((user) => !user.active).length}</b>
+            <small>sem acesso à conta</small>
+          </div>
+        </div>
+        <div className="admin-table-card">
+          <div className="table-toolbar">
+            <div>
+              <h2>Contas cadastradas</h2>
+              <span>{visible.length} usuários</span>
+            </div>
+            <label>
+              <SearchIcon />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Buscar usuário..."
+              />
+            </label>
+          </div>
+          {error && (
+            <div className="users-error">
+              <span>{error}</span>
+              <button type="button" onClick={load}>
+                Tentar novamente
+              </button>
+            </div>
+          )}
+          <div className="admin-table-wrap">
+            <table className="admin-table users-table">
+              <thead>
+                <tr>
+                  <th>Usuário</th>
+                  <th>Permissão</th>
+                  <th>Status</th>
+                  <th>Criado em</th>
+                  {canManageUsers && <th>Ações</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((user) => (
+                  <tr key={user.id}>
+                    <td>
+                      <div className="user-identity">
+                        <i>{user.name.slice(0, 2).toUpperCase()}</i>
+                        <span>
+                          <b>{user.name}</b>
+                          <small>{user.email}</small>
+                        </span>
+                        {user.id === session?.id && <em>Você</em>}
+                      </div>
+                    </td>
+                    <td>
+                      <span
+                        className={`permission-badge ${permissionName(user) === "admin" ? "admin" : ""}`}
+                      >
+                        {user.permission}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className={`status-pill ${user.active ? "active" : ""}`}
+                      >
+                        <i />
+                        {user.active ? "Ativo" : "Bloqueado"}
+                      </span>
+                    </td>
+                    <td>
+                      {new Date(user.createdAt).toLocaleDateString("pt-BR")}
+                    </td>
+                    {canManageUsers && (
+                      <td>
+                        <div className="user-actions">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditing(user);
+                              setFormOpen(true);
+                            }}
+                          >
+                            Editar
+                          </button>
+                          {!user.active ? (
+                            <button
+                              type="button"
+                              onClick={() => activate(user)}
+                            >
+                              Reativar
+                            </button>
+                          ) : (
+                            user.id !== session?.id &&
+                            !isLastActiveAdmin(user) && (
+                              <button
+                                type="button"
+                                className="danger"
+                                onClick={() => setBlocking(user)}
+                              >
+                                Bloquear
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {loading ? (
+              <div className="admin-empty">Carregando usuários...</div>
+            ) : (
+              !visible.length && (
+                <div className="admin-empty">Nenhum usuário encontrado.</div>
+              )
+            )}
+          </div>
+        </div>
+      </section>
+      {notice && (
+        <div className="admin-success-toast" role="status" aria-live="polite">
+          <span>✓</span>
+          {notice}
+          <button
+            type="button"
+            onClick={() => setNotice("")}
+            aria-label="Fechar aviso"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      {canManageUsers && formOpen && (
+        <UserFormModal
+          user={editing}
+          permissions={permissions}
+          currentUserId={session?.id}
+          protectAdmin={editing && isLastActiveAdmin(editing)}
+          onClose={() => {
+            setFormOpen(false);
+            setEditing(null);
+          }}
+          onSaved={saved}
+        />
+      )}
+      {canManageUsers && blocking && (
+        <div className="admin-modal-backdrop">
+          <div className="confirm-modal">
+            <div className="confirm-icon">
+              <TrashIcon />
+            </div>
+            <h2>Bloquear usuário?</h2>
+            <p>
+              “{blocking.name}” perderá o acesso, mas seus dados serão
+              preservados.
+            </p>
+            <div>
+              <button
+                className="admin-secondary"
+                onClick={() => setBlocking(null)}
+              >
+                Cancelar
+              </button>
+              <button className="admin-danger" onClick={block}>
+                Sim, bloquear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
 }
 
 function AnnouncementButton({ product, onChoose }) {
-  const listings=getMarketplaces(product).filter(listing=>listing.url)
-  if(!listings.length)return <button type="button" disabled title="Produto sem anúncio"><ExternalIcon/></button>
-  if(listings.length===1)return <a href={listings[0].url} target="_blank" rel="noreferrer" title={`Abrir anúncio no ${listings[0].name}`}><ExternalIcon/></a>
-  return <button type="button" onClick={()=>onChoose(product)} title={`Escolher entre ${listings.length} anúncios`} aria-label={`Escolher anúncio de ${product.name}`}><ExternalIcon/></button>
+  const listings = getMarketplaces(product).filter((listing) => listing.url);
+  if (!listings.length)
+    return (
+      <button type="button" disabled title="Produto sem anúncio">
+        <ExternalIcon />
+      </button>
+    );
+  if (listings.length === 1)
+    return (
+      <a
+        href={listings[0].url}
+        target="_blank"
+        rel="noreferrer"
+        title={`Abrir anúncio no ${listings[0].name}`}
+      >
+        <ExternalIcon />
+      </a>
+    );
+  return (
+    <button
+      type="button"
+      onClick={() => onChoose(product)}
+      title={`Escolher entre ${listings.length} anúncios`}
+      aria-label={`Escolher anúncio de ${product.name}`}
+    >
+      <ExternalIcon />
+    </button>
+  );
 }
 
 function AnnouncementChooserModal({ product, onClose }) {
-  const listings=getMarketplaces(product).filter(listing=>listing.url)
-  useEffect(()=>{const close=event=>event.key==='Escape'&&onClose();document.addEventListener('keydown',close);return()=>document.removeEventListener('keydown',close)},[onClose])
-  return <div className="admin-modal-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><div className="announcement-chooser-modal" role="dialog" aria-modal="true" aria-labelledby="announcement-chooser-title"><div className="modal-head"><div><span className="admin-kicker">PRODUTO / ANÚNCIOS</span><h2 id="announcement-chooser-title">Escolha onde abrir</h2></div><button type="button" onClick={onClose} aria-label="Fechar">×</button></div><div className="announcement-chooser-body"><p>Este produto possui {listings.length} canais de venda.</p>{listings.map((listing,index)=><a href={listing.url} target="_blank" rel="noreferrer" onClick={onClose} key={listing.id||`${listing.marketplaceId}-${index}`}><span><i>{listing.name.slice(0,2).toUpperCase()}</i><b>{listing.name}</b></span><small>{listing.externalProductId||'Abrir anúncio'} <ExternalIcon/></small></a>)}</div><div className="modal-actions"><button type="button" className="admin-secondary" onClick={onClose}>Cancelar</button></div></div></div>
+  const listings = getMarketplaces(product).filter((listing) => listing.url);
+  useEffect(() => {
+    const close = (event) => event.key === "Escape" && onClose();
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [onClose]);
+  return (
+    <div
+      className="admin-modal-backdrop"
+      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+    >
+      <div
+        className="announcement-chooser-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="announcement-chooser-title"
+      >
+        <div className="modal-head">
+          <div>
+            <span className="admin-kicker">PRODUTO / ANÚNCIOS</span>
+            <h2 id="announcement-chooser-title">Escolha onde abrir</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Fechar">
+            ×
+          </button>
+        </div>
+        <div className="announcement-chooser-body">
+          <p>Este produto possui {listings.length} canais de venda.</p>
+          {listings.map((listing, index) => (
+            <a
+              href={listing.url}
+              target="_blank"
+              rel="noreferrer"
+              onClick={onClose}
+              key={listing.id || `${listing.marketplaceId}-${index}`}
+            >
+              <span>
+                <i>{listing.name.slice(0, 2).toUpperCase()}</i>
+                <b>{listing.name}</b>
+              </span>
+              <small>
+                {listing.externalProductId || "Abrir anúncio"} <ExternalIcon />
+              </small>
+            </a>
+          ))}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="admin-secondary" onClick={onClose}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ShippingOriginSettings({ onClose }) {
-  const [form,setForm]=useState({originPostalCode:'',originStreet:'',originNumber:'',originComplement:'',originNeighborhood:'',originCity:'',originState:''})
-  const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState('')
-  useEffect(()=>{const controller=new AbortController();shippingSettingsService.get(controller.signal).then(value=>{if(value)setForm(current=>({...current,...value}))}).catch(err=>{if(err.name!=='AbortError')setError(err.message)}).finally(()=>setLoading(false));return()=>controller.abort()},[])
-  const submit=async event=>{event.preventDefault();const originPostalCode=form.originPostalCode.replace(/\D/g,'');const originState=form.originState.trim().toUpperCase();if(!/^\d{8}$/.test(originPostalCode)||!/^([A-Z]{2})$/.test(originState)){setError('Informe CEP com 8 dígitos e UF com 2 letras.');return}setSaving(true);setError('');try{await shippingSettingsService.save({...form,originPostalCode,originState});onClose()}catch(err){setError(err.message)}finally{setSaving(false)}}
-  return <div className="admin-modal-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><div className="shipping-origin-modal" role="dialog" aria-modal="true" aria-labelledby="shipping-origin-title"><div className="modal-head"><div><span className="admin-kicker">FRETE / ORIGEM</span><h2 id="shipping-origin-title">Editar origem de envio</h2></div><button type="button" onClick={onClose} aria-label="Fechar">×</button></div>{loading?<div className="shipping-origin-loading">Carregando origem de envio...</div>:<form onSubmit={submit}><p>Endereço usado para cotar frete no Melhor Envio.</p><div className="shipping-origin-grid"><label>CEP<input inputMode="numeric" maxLength="9" value={form.originPostalCode} onChange={e=>setForm({...form,originPostalCode:e.target.value})} required/></label><label>Rua<input value={form.originStreet||''} onChange={e=>setForm({...form,originStreet:e.target.value})} required/></label><label>Número<input value={form.originNumber||''} onChange={e=>setForm({...form,originNumber:e.target.value})} required/></label><label>Complemento<input value={form.originComplement||''} onChange={e=>setForm({...form,originComplement:e.target.value})}/></label><label>Bairro<input value={form.originNeighborhood||''} onChange={e=>setForm({...form,originNeighborhood:e.target.value})} required/></label><label>Cidade<input value={form.originCity||''} onChange={e=>setForm({...form,originCity:e.target.value})} required/></label><label>UF<input maxLength="2" value={form.originState||''} onChange={e=>setForm({...form,originState:e.target.value.toUpperCase()})} required/></label></div>{error&&<p className="form-error">{error}</p>}<div className="modal-actions"><button type="button" className="admin-secondary" onClick={onClose}>Cancelar</button><button className="admin-primary" disabled={saving}>{saving?'Salvando...':'Salvar origem'}</button></div></form>}</div></div>
+  const [form, setForm] = useState({
+    originPostalCode: "",
+    originStreet: "",
+    originNumber: "",
+    originComplement: "",
+    originNeighborhood: "",
+    originCity: "",
+    originState: "",
+  });
+  const [loading, setLoading] = useState(true),
+    [saving, setSaving] = useState(false),
+    [error, setError] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    shippingSettingsService
+      .get(controller.signal)
+      .then((value) => {
+        if (value) setForm((current) => ({ ...current, ...value }));
+      })
+      .catch((err) => {
+        if (err.name !== "AbortError") setError(err.message);
+      })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, []);
+  const submit = async (event) => {
+    event.preventDefault();
+    const originPostalCode = form.originPostalCode.replace(/\D/g, "");
+    const originState = form.originState.trim().toUpperCase();
+    if (
+      !/^\d{8}$/.test(originPostalCode) ||
+      !/^([A-Z]{2})$/.test(originState)
+    ) {
+      setError("Informe CEP com 8 dígitos e UF com 2 letras.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await shippingSettingsService.save({
+        ...form,
+        originPostalCode,
+        originState,
+      });
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div
+      className="admin-modal-backdrop"
+      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+    >
+      <div
+        className="shipping-origin-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shipping-origin-title"
+      >
+        <div className="modal-head">
+          <div>
+            <span className="admin-kicker">FRETE / ORIGEM</span>
+            <h2 id="shipping-origin-title">Editar origem de envio</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Fechar">
+            ×
+          </button>
+        </div>
+        {loading ? (
+          <div className="shipping-origin-loading">
+            Carregando origem de envio...
+          </div>
+        ) : (
+          <form onSubmit={submit}>
+            <p>Endereço usado para cotar frete no Melhor Envio.</p>
+            <div className="shipping-origin-grid">
+              <label>
+                CEP
+                <input
+                  inputMode="numeric"
+                  maxLength="9"
+                  value={form.originPostalCode}
+                  onChange={(e) =>
+                    setForm({ ...form, originPostalCode: e.target.value })
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Rua
+                <input
+                  value={form.originStreet || ""}
+                  onChange={(e) =>
+                    setForm({ ...form, originStreet: e.target.value })
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Número
+                <input
+                  value={form.originNumber || ""}
+                  onChange={(e) =>
+                    setForm({ ...form, originNumber: e.target.value })
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Complemento
+                <input
+                  value={form.originComplement || ""}
+                  onChange={(e) =>
+                    setForm({ ...form, originComplement: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Bairro
+                <input
+                  value={form.originNeighborhood || ""}
+                  onChange={(e) =>
+                    setForm({ ...form, originNeighborhood: e.target.value })
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Cidade
+                <input
+                  value={form.originCity || ""}
+                  onChange={(e) =>
+                    setForm({ ...form, originCity: e.target.value })
+                  }
+                  required
+                />
+              </label>
+              <label>
+                UF
+                <input
+                  maxLength="2"
+                  value={form.originState || ""}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      originState: e.target.value.toUpperCase(),
+                    })
+                  }
+                  required
+                />
+              </label>
+            </div>
+            {error && <p className="form-error">{error}</p>}
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="admin-secondary"
+                onClick={onClose}
+              >
+                Cancelar
+              </button>
+              <button className="admin-primary" disabled={saving}>
+                {saving ? "Salvando..." : "Salvar origem"}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
 }
 
-function AdminDashboard({ products,saveProduct,toggleProduct,removeProduct,clicks,session,onLogout,productError,onRetryProducts }) {
-  const access=permissionAccess(session)
-  const canManageProducts=access.manageProducts
-  const [query,setQuery]=useState(''),[editing,setEditing]=useState(null),[formOpen,setFormOpen]=useState(false),[originOpen,setOriginOpen]=useState(false),[confirmDelete,setConfirmDelete]=useState(null),[announcementProduct,setAnnouncementProduct]=useState(null)
-  const visible=products.filter(p=>`${p.name} ${p.marketplace}`.toLocaleLowerCase('pt-BR').includes(query.toLocaleLowerCase('pt-BR')))
-  const save=async data=>{await saveProduct(data);setFormOpen(false);setEditing(null)}
-  const toggle=async id=>{try{await toggleProduct(id)}catch(error){window.alert(error.message)}}
-  const remove=async id=>{try{await removeProduct(id);setConfirmDelete(null)}catch(error){window.alert(error.message)}}
-  if(productError)return <main className="admin-shell"><AdminSidebar active="products" session={session} onLoggedOut={onLogout}/><section className="admin-content"><header className="admin-top"><div><span className="admin-kicker">PAINEL / CATÁLOGO</span><h1>Produtos</h1><p>{canManageProducts?'Gerencie tudo o que aparece na vitrine da Triso.':'Consulte os produtos publicados na vitrine.'}</p></div>{access.manageCatalogOptions&&<button className="admin-secondary" type="button" onClick={()=>setOriginOpen(true)}>Editar origem</button>}</header><div className="admin-table-card"><div className="admin-empty"><p>Não foi possível carregar os produtos. {productError}</p><button className="admin-primary" type="button" onClick={onRetryProducts}>Tentar novamente</button></div></div></section>{originOpen&&<ShippingOriginSettings onClose={()=>setOriginOpen(false)}/>}</main>
-  return <main className="admin-shell">
-    <AdminSidebar active="products" session={session} onLoggedOut={onLogout}/>
-    <section className="admin-content">
-      <header className="admin-top"><div><span className="admin-kicker">PAINEL / CATÁLOGO</span><h1>Produtos</h1><p>{canManageProducts?'Gerencie tudo o que aparece na vitrine da Triso.':'Consulte os produtos publicados na vitrine.'}</p></div><div className="admin-top-actions">{access.manageCatalogOptions&&<button className="admin-secondary" type="button" onClick={()=>setOriginOpen(true)}>Editar origem</button>}{canManageProducts&&<button className="admin-primary" onClick={()=>{setEditing(null);setFormOpen(true)}}><PlusIcon/> Novo produto</button>}</div></header>
-      <div className="admin-stats"><div><span>Total de produtos</span><b>{products.length}</b><small>itens cadastrados</small></div><div><span>Produtos ativos</span><b>{products.filter(p=>p.active).length}</b><small>visíveis na loja</small></div><div><span>Marketplaces</span><b>{new Set(products.map(p=>p.marketplace)).size}</b><small>canais conectados</small></div></div>
-      <div className="admin-table-card"><div className="table-toolbar"><div><h2>Catálogo</h2><span>{visible.length} produtos</span></div><label><SearchIcon/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar produto..."/></label></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Produto</th><th>Categoria</th><th>Preço</th><th>Canal de venda</th><th>Status</th><th>{canManageProducts?'Ações':'Anúncio'}</th></tr></thead><tbody>{visible.map(product=><tr key={product.id}><td><div className="table-product"><ProductVisual product={product} small/><span><b>{product.name}</b><small>#{String(product.id).slice(-5)}</small></span></div></td><td>{categories[product.category]}</td><td><b>{money(product.price)}</b></td><td><span className="market-chip-admin">{product.marketplace}</span></td><td>{canManageProducts?<button className={`status-pill ${product.active?'active':''}`} onClick={()=>toggle(product.id)}><i/>{product.active?'Ativo':'Inativo'}</button>:<span className={`status-pill ${product.active?'active':''}`}><i/>{product.active?'Ativo':'Inativo'}</span>}</td><td><div className="table-actions"><AnnouncementButton product={product} onChoose={setAnnouncementProduct}/>{canManageProducts&&<><button title="Editar" onClick={()=>{setEditing(product);setFormOpen(true)}}><EditIcon/></button><button className="danger" title="Excluir" onClick={()=>setConfirmDelete(product)}><TrashIcon/></button></>}</div></td></tr>)}</tbody></table>{!visible.length&&<div className="admin-empty">Nenhum produto encontrado.</div>}</div></div>
-    </section>
-    {canManageProducts&&formOpen&&<ProductForm product={editing} onSave={save} onClose={()=>{setFormOpen(false);setEditing(null)}} canManageCatalogOptions={access.manageCatalogOptions}/>}
-    {originOpen&&<ShippingOriginSettings onClose={()=>setOriginOpen(false)}/>}
-    {announcementProduct&&<AnnouncementChooserModal product={announcementProduct} onClose={()=>setAnnouncementProduct(null)}/>}
-    {canManageProducts&&confirmDelete&&<div className="admin-modal-backdrop"><div className="confirm-modal"><div className="confirm-icon"><TrashIcon/></div><h2>Excluir produto?</h2><p>“{confirmDelete.name}” será removido do catálogo. Esta ação não pode ser desfeita.</p><div><button className="admin-secondary" onClick={()=>setConfirmDelete(null)}>Cancelar</button><button className="admin-danger" onClick={()=>remove(confirmDelete.id)}>Sim, excluir</button></div></div></div>}
-  </main>
+function AdminDashboard({
+  products,
+  saveProduct,
+  toggleProduct,
+  removeProduct,
+  clicks,
+  session,
+  onLogout,
+  productError,
+  onRetryProducts,
+}) {
+  const access = permissionAccess(session);
+  const canManageProducts = access.manageProducts;
+  const [query, setQuery] = useState(""),
+    [editing, setEditing] = useState(null),
+    [formOpen, setFormOpen] = useState(false),
+    [originOpen, setOriginOpen] = useState(false),
+    [confirmDelete, setConfirmDelete] = useState(null),
+    [announcementProduct, setAnnouncementProduct] = useState(null);
+  const visible = products.filter((p) =>
+    `${p.name} ${p.marketplace}`
+      .toLocaleLowerCase("pt-BR")
+      .includes(query.toLocaleLowerCase("pt-BR")),
+  );
+  const save = async (data) => {
+    await saveProduct(data);
+    setFormOpen(false);
+    setEditing(null);
+  };
+  const toggle = async (id) => {
+    try {
+      await toggleProduct(id);
+    } catch (error) {
+      window.alert(error.message);
+    }
+  };
+  const remove = async (id) => {
+    try {
+      await removeProduct(id);
+      setConfirmDelete(null);
+    } catch (error) {
+      window.alert(error.message);
+    }
+  };
+  if (productError)
+    return (
+      <main className="admin-shell">
+        <AdminSidebar
+          active="products"
+          session={session}
+          onLoggedOut={onLogout}
+        />
+        <section className="admin-content">
+          <header className="admin-top">
+            <div>
+              <span className="admin-kicker">PAINEL / CATÁLOGO</span>
+              <h1>Produtos</h1>
+              <p>
+                {canManageProducts
+                  ? "Gerencie tudo o que aparece na vitrine da Triso."
+                  : "Consulte os produtos publicados na vitrine."}
+              </p>
+            </div>
+            {access.manageCatalogOptions && (
+              <button
+                className="admin-secondary"
+                type="button"
+                onClick={() => setOriginOpen(true)}
+              >
+                Editar origem
+              </button>
+            )}
+          </header>
+          <div className="admin-table-card">
+            <div className="admin-empty">
+              <p>Não foi possível carregar os produtos. {productError}</p>
+              <button
+                className="admin-primary"
+                type="button"
+                onClick={onRetryProducts}
+              >
+                Tentar novamente
+              </button>
+            </div>
+          </div>
+        </section>
+        {originOpen && (
+          <ShippingOriginSettings onClose={() => setOriginOpen(false)} />
+        )}
+      </main>
+    );
+  return (
+    <main className="admin-shell">
+      <AdminSidebar
+        active="products"
+        session={session}
+        onLoggedOut={onLogout}
+      />
+      <section className="admin-content">
+        <header className="admin-top">
+          <div>
+            <span className="admin-kicker">PAINEL / CATÁLOGO</span>
+            <h1>Produtos</h1>
+            <p>
+              {canManageProducts
+                ? "Gerencie tudo o que aparece na vitrine da Triso."
+                : "Consulte os produtos publicados na vitrine."}
+            </p>
+          </div>
+          <div className="admin-top-actions">
+            {access.manageCatalogOptions && (
+              <button
+                className="admin-secondary"
+                type="button"
+                onClick={() => setOriginOpen(true)}
+              >
+                Editar origem
+              </button>
+            )}
+            {canManageProducts && (
+              <button
+                className="admin-primary"
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+              >
+                <PlusIcon /> Novo produto
+              </button>
+            )}
+          </div>
+        </header>
+        <div className="admin-stats">
+          <div>
+            <span>Total de produtos</span>
+            <b>{products.length}</b>
+            <small>itens cadastrados</small>
+          </div>
+          <div>
+            <span>Produtos ativos</span>
+            <b>{products.filter((p) => p.active).length}</b>
+            <small>visíveis na loja</small>
+          </div>
+          <div>
+            <span>Marketplaces</span>
+            <b>{new Set(products.map((p) => p.marketplace)).size}</b>
+            <small>canais conectados</small>
+          </div>
+        </div>
+        <div className="admin-table-card">
+          <div className="table-toolbar">
+            <div>
+              <h2>Catálogo</h2>
+              <span>{visible.length} produtos</span>
+            </div>
+            <label>
+              <SearchIcon />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar produto..."
+              />
+            </label>
+          </div>
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th>Categoria</th>
+                  <th>Preço</th>
+                  <th>Canal de venda</th>
+                  <th>Status</th>
+                  <th>{canManageProducts ? "Ações" : "Anúncio"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((product) => (
+                  <tr key={product.id}>
+                    <td>
+                      <div className="table-product">
+                        <ProductVisual product={product} small />
+                        <span>
+                          <b>{product.name}</b>
+                          <small>#{String(product.id).slice(-5)}</small>
+                        </span>
+                      </div>
+                    </td>
+                    <td>{categories[product.category]}</td>
+                    <td>
+                      <b>{money(product.price)}</b>
+                    </td>
+                    <td>
+                      <span className="market-chip-admin">
+                        {product.marketplace}
+                      </span>
+                    </td>
+                    <td>
+                      {canManageProducts ? (
+                        <button
+                          className={`status-pill ${product.active ? "active" : ""}`}
+                          onClick={() => toggle(product.id)}
+                        >
+                          <i />
+                          {product.active ? "Ativo" : "Inativo"}
+                        </button>
+                      ) : (
+                        <span
+                          className={`status-pill ${product.active ? "active" : ""}`}
+                        >
+                          <i />
+                          {product.active ? "Ativo" : "Inativo"}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="table-actions">
+                        <AnnouncementButton
+                          product={product}
+                          onChoose={setAnnouncementProduct}
+                        />
+                        {canManageProducts && (
+                          <>
+                            <button
+                              title="Editar"
+                              onClick={() => {
+                                setEditing(product);
+                                setFormOpen(true);
+                              }}
+                            >
+                              <EditIcon />
+                            </button>
+                            <button
+                              className="danger"
+                              title="Excluir"
+                              onClick={() => setConfirmDelete(product)}
+                            >
+                              <TrashIcon />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!visible.length && (
+              <div className="admin-empty">Nenhum produto encontrado.</div>
+            )}
+          </div>
+        </div>
+      </section>
+      {canManageProducts && formOpen && (
+        <ProductForm
+          product={editing}
+          onSave={save}
+          onClose={() => {
+            setFormOpen(false);
+            setEditing(null);
+          }}
+          canManageCatalogOptions={access.manageCatalogOptions}
+        />
+      )}
+      {originOpen && (
+        <ShippingOriginSettings onClose={() => setOriginOpen(false)} />
+      )}
+      {announcementProduct && (
+        <AnnouncementChooserModal
+          product={announcementProduct}
+          onClose={() => setAnnouncementProduct(null)}
+        />
+      )}
+      {canManageProducts && confirmDelete && (
+        <div className="admin-modal-backdrop">
+          <div className="confirm-modal">
+            <div className="confirm-icon">
+              <TrashIcon />
+            </div>
+            <h2>Excluir produto?</h2>
+            <p>
+              “{confirmDelete.name}” será removido do catálogo. Esta ação não
+              pode ser desfeita.
+            </p>
+            <div>
+              <button
+                className="admin-secondary"
+                onClick={() => setConfirmDelete(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="admin-danger"
+                onClick={() => remove(confirmDelete.id)}
+              >
+                Sim, excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
 }
 
 export default function App() {
-  const auth = useAuth()
-  const location=useSpaLocation()
-  const routeParams=new URLSearchParams(location.search)
-  const adminPathMatch=location.pathname.match(/^\/admin(?:\/(produtos|usuarios))?\/?$/)
-  const isAdminRoute=routeParams.has('admin') || Boolean(adminPathMatch)
-  const customerRoute = isAdminRoute ? '' : location.pathname
-  let customerPage = null
-  if (customerRoute === '/carrinho') customerPage = <CartPage/>
-  if (customerRoute === '/entrar') customerPage = <UniversalAuthPage/>
-  if (customerRoute === '/cadastro') customerPage = <UniversalAuthPage register/>
-  if (customerRoute === '/checkout') customerPage = <CheckoutPage/>
-  if (customerRoute === '/payment/success') customerPage = <PaymentReturnPage/>
-  const confirmationMatch = customerRoute.match(/^\/pedido\/([^/]+)\/confirmacao$/)
-  if (confirmationMatch) customerPage = <ConfirmationPage orderId={confirmationMatch[1]}/>
-  const orderMatch = customerRoute.match(/^\/minha-conta\/pedidos\/([^/]+)$/)
-  if (orderMatch) customerPage = <AccountPage detailId={orderMatch[1]}/>
-  if (customerRoute === '/minha-conta' || customerRoute === '/minha-conta/pedidos') customerPage = <AccountPage/>
-  const session=isAdminRoute?auth.user:null
-  const {products,loading,error,reload,saveProduct,toggleProduct,removeProduct}=useProducts(!isAdminRoute?'public':session?'admin':null)
-  const [clicks,recordClick]=useClicks()
-  if(isAdminRoute&&auth.isLoadingSession)return <div className="app-loading"><span/><p>Carregando Triso...</p></div>
-  if(!isAdminRoute)return customerPage || <PublicStore products={products} recordClick={recordClick} productError={error} productsLoading={loading} onRetryProducts={reload}/>
-  if(!session)return <UniversalAuthPage/>
-  if(!auth.hasAdminAccess)return <AccountPage/>
-  const adminView=adminPathMatch?.[1] === 'produtos' ? 'products' : adminPathMatch?.[1] === 'usuarios' ? 'users' : routeParams.get('view')
-  const access=permissionAccess(session)
-  if(adminView==='users'&&access.viewUsers)return <UsersPage session={session} onLogout={auth.logout}/>
-  if(adminView==='products')return <AdminDashboard products={products} saveProduct={saveProduct} toggleProduct={toggleProduct} removeProduct={removeProduct} clicks={clicks} session={session} onLogout={auth.logout} productError={error} onRetryProducts={reload}/>
-  return <AnalyticsPage clicks={clicks} session={session} onLogout={auth.logout}/>
+  const auth = useAuth();
+  const location = useSpaLocation();
+  const routeParams = new URLSearchParams(location.search);
+  const adminPathMatch = location.pathname.match(
+    /^\/admin(?:\/(produtos|usuarios))?\/?$/,
+  );
+  const isAdminRoute = routeParams.has("admin") || Boolean(adminPathMatch);
+  const customerRoute = isAdminRoute ? "" : location.pathname;
+  let customerPage = null;
+  if (customerRoute === "/carrinho") customerPage = <CartPage />;
+  if (customerRoute === "/entrar") customerPage = <UniversalAuthPage />;
+  if (customerRoute === "/cadastro")
+    customerPage = <UniversalAuthPage register />;
+  if (customerRoute === "/checkout") customerPage = <CheckoutPage />;
+  if (customerRoute === "/payment/success")
+    customerPage = <PaymentReturnPage />;
+  const confirmationMatch = customerRoute.match(
+    /^\/pedido\/([^/]+)\/confirmacao$/,
+  );
+  if (confirmationMatch)
+    customerPage = <ConfirmationPage orderId={confirmationMatch[1]} />;
+  const orderMatch = customerRoute.match(/^\/minha-conta\/pedidos\/([^/]+)$/);
+  if (orderMatch)
+    customerPage = (
+      <AccountPage key={`order-${orderMatch[1]}`} detailId={orderMatch[1]} />
+    );
+  if (
+    customerRoute === "/minha-conta" ||
+    customerRoute === "/minha-conta/pedidos"
+  )
+    customerPage = <AccountPage key="orders" />;
+  const session = isAdminRoute ? auth.user : null;
+  const {
+    products,
+    loading,
+    error,
+    reload,
+    saveProduct,
+    toggleProduct,
+    removeProduct,
+  } = useProducts(!isAdminRoute ? "public" : session ? "admin" : null);
+  const [clicks, recordClick] = useClicks();
+  if (isAdminRoute && auth.isLoadingSession)
+    return (
+      <div className="app-loading">
+        <span />
+        <p>Carregando Triso...</p>
+      </div>
+    );
+  if (!isAdminRoute)
+    return (
+      customerPage || (
+        <PublicStore
+          products={products}
+          recordClick={recordClick}
+          productError={error}
+          productsLoading={loading}
+          onRetryProducts={reload}
+        />
+      )
+    );
+  if (!session) return <UniversalAuthPage />;
+  if (!auth.hasAdminAccess) return <AccountPage />;
+  const adminView =
+    adminPathMatch?.[1] === "produtos"
+      ? "products"
+      : adminPathMatch?.[1] === "usuarios"
+        ? "users"
+        : routeParams.get("view");
+  const access = permissionAccess(session);
+  if (adminView === "users" && access.viewUsers)
+    return <UsersPage session={session} onLogout={auth.logout} />;
+  if (adminView === "products")
+    return (
+      <AdminDashboard
+        products={products}
+        saveProduct={saveProduct}
+        toggleProduct={toggleProduct}
+        removeProduct={removeProduct}
+        clicks={clicks}
+        session={session}
+        onLogout={auth.logout}
+        productError={error}
+        onRetryProducts={reload}
+      />
+    );
+  return (
+    <AnalyticsPage clicks={clicks} session={session} onLogout={auth.logout} />
+  );
 }

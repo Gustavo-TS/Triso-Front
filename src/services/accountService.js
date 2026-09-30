@@ -18,4 +18,5 @@ export const accountService = {
   async register({ name, email, password }) { return customerOnly(await accountService.registerRaw({ name, email, password })) },
   async logout() { await apiClient.post(APP_CONFIG.endpoints.logout, {}) },
   async profile(signal) { return unwrap(await apiClient.get(APP_CONFIG.endpoints.profile, { signal })) },
+  async updateProfile({ name, email }) { return unwrap(await apiClient.patch(APP_CONFIG.endpoints.profile, { name: name.trim(), email: email.trim() })) },
 }
