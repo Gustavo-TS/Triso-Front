@@ -5,7 +5,13 @@ import '../styles.css'
 import './shapes.css'
 import './admin.css'
 import './loading.css'
+import './logistics.css'
+import './shipping-settings.css'
+import './commerce.css'
+import './checkout.css'
+import { CartProvider } from './features/cart/CartContext.jsx'
+import { AuthProvider } from './features/auth/AuthContext.jsx'
 
 createRoot(document.getElementById('root')).render(
-  <React.StrictMode><App /></React.StrictMode>,
+  <React.StrictMode><AuthProvider><CartProvider><App /></CartProvider></AuthProvider></React.StrictMode>,
 )

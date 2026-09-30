@@ -6,6 +6,11 @@ import { analyticsService } from './services/analyticsService.js'
 import { authService } from './services/authService.js'
 import { catalogService } from './services/catalogService.js'
 import { userService } from './services/userService.js'
+import { useCart } from './features/cart/CartContext.jsx'
+import { AccountPage, CartPage, CheckoutPage, ConfirmationPage, LoginPage as CustomerLoginPage, PaymentReturnPage, RegisterPage } from './features/commerce/CommercePages.jsx'
+import { accountService } from './services/accountService.js'
+import { shippingSettingsService } from './services/shippingSettingsService.js'
+import { getAuthenticatedHome, hasAdminAccess, isCustomer, useAuth } from './features/auth/AuthContext.jsx'
 
 const categories = CATEGORY_LABELS
 const emptyProduct = CATALOG_OPTIONS.productDefaults
@@ -18,6 +23,7 @@ const permissionAccess = session => {
   const permission=permissionName(session)
   return {
     manageProducts: permission==='admin'||permission==='gestor',
+    manageCatalogOptions: permission==='admin',
     viewUsers: permission==='admin'||permission==='gestor',
     manageUsers: permission==='admin',
   }
@@ -37,6 +43,7 @@ function useSpaLocation() {
       if (!anchor || anchor.hasAttribute('download')) return
       const url = new URL(anchor.href, window.location.href)
       if (url.origin !== window.location.origin || !['http:', 'https:'].includes(url.protocol)) return
+      if (url.searchParams.has('admin')) return
       const samePageAnchor = url.pathname === window.location.pathname && url.search === window.location.search && url.hash
       if (samePageAnchor) return
       event.preventDefault()
@@ -90,13 +97,12 @@ function useClicks() {
 }
 
 function useCatalogOptions(enabled) {
-  const [options, setOptions] = useState({ categories: [], marketplaces: [] })
+  const [options, setOptions] = useState({ categories: [] })
   const reload = async () => {
-    if (!enabled) return { categories: [], marketplaces: [] }
-    const [categoryResult,marketplaceResult]=await Promise.allSettled([catalogService.listCategories({admin:true}),catalogService.listMarketplaces({admin:true})])
+    if (!enabled) return { categories: [] }
+    const [categoryResult]=await Promise.allSettled([catalogService.listCategories({admin:true})])
     const allCategories=categoryResult.status==='fulfilled'?categoryResult.value:[]
-    const marketplaces=marketplaceResult.status==='fulfilled'?marketplaceResult.value.filter(marketplace=>marketplace.active!==false):[]
-    const next={categories:allCategories.filter(category=>category.active!==false),marketplaces}
+    const next={categories:allCategories.filter(category=>category.active!==false)}
     setOptions(next)
     return next
   }
@@ -119,9 +125,9 @@ function AdminSidebar({ active, session, onLoggedOut }) {
   const logout=async()=>{if(leaving)return;setLeaving(true);try{await authService.logout()}finally{onLoggedOut()}}
   const access=permissionAccess(session)
   const links=[
-    {id:'dashboard',href:'?admin=1',icon:'⌁',label:'Dashboard'},
-    {id:'products',href:'?admin=1&view=products',icon:'▦',label:'Produtos'},
-    {id:'users',href:'?admin=1&view=users',icon:'◎',label:'Usuários',visible:access.viewUsers},
+    {id:'dashboard',href:'/admin',icon:'⌁',label:'Dashboard'},
+    {id:'products',href:'/admin/produtos',icon:'▦',label:'Produtos'},
+    {id:'users',href:'/admin/usuarios',icon:'◎',label:'Usuários',visible:access.viewUsers},
   ].filter(link=>link.visible!==false)
   const initials=(session?.name||'Administrador').split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase()
   return <aside className="admin-sidebar"><Brand/><nav><span>MENU PRINCIPAL</span>{links.map(link=><a key={link.id} className={active===link.id?'active':''} href={link.href} aria-current={active===link.id?'page':undefined}><i>{link.icon}</i>{link.label}</a>)}<a href="/" target="_blank"><i>↗</i> Ver loja</a></nav><div className="admin-user"><div>{initials}</div><span><b>{session?.name||'Administrador'}</b><small>{session?.email||ADMIN_EMAIL}</small></span><button onClick={logout} disabled={leaving} title="Sair">↪</button></div></aside>
@@ -138,10 +144,16 @@ function ProductVisual({ product, small = false, imageUrl }) {
 }
 
 function Header() {
+  const { totalQuantity } = useCart()
+  const { user, isLoadingSession, isCustomer, hasAdminAccess } = useAuth()
   const [menu, setMenu] = useState(false)
   const [sticky, setSticky] = useState(false)
   useEffect(() => { const scroll = () => setSticky(window.scrollY > 70); window.addEventListener('scroll', scroll, { passive: true }); return () => window.removeEventListener('scroll', scroll) }, [])
-  return <header className={`header ${sticky ? 'sticky' : ''}`}><div className="container header-inner"><Brand/><nav className="desktop-nav"><a href="#loja">Produtos</a><a href="#colecoes">Coleções</a><a href="#sobre">Sobre</a></nav><div className="header-actions"><a className="admin-entry" href="?admin=1">Área administrativa</a><button className="menu-button" onClick={() => setMenu(!menu)} aria-label="Abrir menu" aria-expanded={menu}><i/><i/></button></div></div><div className={`mobile-menu ${menu ? 'open' : ''}`} aria-hidden={!menu}>{['Produtos','Coleções','Sobre'].map((item,i)=><a key={item} href={['#loja','#colecoes','#sobre'][i]} onClick={()=>setMenu(false)}>{item}</a>)}<a href="?admin=1">Área administrativa</a></div></header>
+  const accountLink=!user?'/entrar':isCustomer?'/minha-conta':hasAdminAccess?'/admin':'/entrar'
+  const accountLabel=!user?'Entrar':isCustomer?'Minha conta':hasAdminAccess?'Área administrativa':'Entrar'
+  const accountNavigation=isLoadingSession?<span className="header-account-skeleton" aria-label="Carregando sessão"/>:<a className="admin-entry" href={accountLink}>{accountLabel}</a>
+  const mobileAccountNavigation=isLoadingSession?<span className="header-account-skeleton" aria-label="Carregando sessão"/>:<a href={accountLink}>{accountLabel}</a>
+  return <header className={`header ${sticky ? 'sticky' : ''}`}><div className="container header-inner"><Brand/><nav className="desktop-nav"><a href="#loja">Produtos</a><a href="#colecoes">Coleções</a><a href="#sobre">Sobre</a></nav><div className="header-actions"><a className="cart-button" href="/carrinho">Carrinho <b>{totalQuantity}</b></a>{accountNavigation}<button className="menu-button" onClick={() => setMenu(!menu)} aria-label="Abrir menu" aria-expanded={menu}><i/><i/></button></div></div><div className={`mobile-menu ${menu ? 'open' : ''}`} aria-hidden={!menu}>{['Produtos','Coleções','Sobre'].map((item,i)=><a key={item} href={['#loja','#colecoes','#sobre'][i]} onClick={()=>setMenu(false)}>{item}</a>)}<a href="/carrinho">Carrinho ({totalQuantity})</a>{mobileAccountNavigation}</div></header>
 }
 
 function Hero({ products, loading }) {
@@ -179,12 +191,13 @@ function Collections({ setFilter }) {
 }
 function CollectionInfo({ code, children }) { return <div className="collection-info"><span>{code} — Coleção</span><h3>{children}</h3><b>Explorar <i>↗</i></b></div> }
 
-function ProductCard({ product, onOpen }) {
+function ProductCard({ product, onOpen, onAdd }) {
+  const { add } = useCart()
   const listings = getMarketplaces(product)
-  return <article className="product-card product-card-clickable" onClick={() => onOpen(product)}><ProductVisual product={product}/><div className="product-info"><span className="product-overline">{product.categoryName || categories[product.category] || 'Outros'} · {listings.length} {listings.length === 1 ? 'loja disponível' : 'lojas disponíveis'}</span><div className="product-title-row"><h3>{product.name}</h3><strong>{money(product.price)}</strong></div><p>{product.description}</p><button className="marketplace-button" type="button"><span>Ver anúncio do produto</span><span>→</span></button></div></article>
+  return <article className="product-card product-card-clickable" onClick={() => onOpen(product)}><ProductVisual product={product}/><div className="product-info"><span className="product-overline">{product.categoryName || categories[product.category] || 'Outros'}</span><div className="product-title-row"><h3>{product.name}</h3><strong>{money(product.price)}</strong></div><p>{product.description}</p><button className="add-button" type="button" onClick={event=>{event.preventDefault();event.stopPropagation();add(product.id)}}><b>+</b> Adicionar ao carrinho</button></div></article>
 }
 
-function Shop({ products, filter, setFilter, onOpen, error, loading, onRetry }) {
+function Shop({ products, filter, setFilter, onOpen, onAdd, error, loading, onRetry }) {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState('featured')
   const visible = useMemo(() => { const q=query.trim().toLocaleLowerCase('pt-BR'); const list=products.filter(p=>p.active&&(filter==='todos'||p.category===filter)&&`${p.name} ${p.description} ${getMarketplaces(p).map(m=>m.name).join(' ')}`.toLocaleLowerCase('pt-BR').includes(q)); if(sort==='low')list.sort((a,b)=>a.price-b.price);if(sort==='high')list.sort((a,b)=>b.price-a.price);if(sort==='name')list.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));return list },[products,filter,query,sort])
@@ -193,6 +206,7 @@ function Shop({ products, filter, setFilter, onOpen, error, loading, onRetry }) 
 }
 
 function ProductDetail({ product, onClose, onMarketplaceClick }) {
+  const { add } = useCart()
   const listings = getMarketplaces(product)
   const images=(product.images||[]).filter(image=>image.url)
   const [selectedIndex,setSelectedIndex]=useState(0)
@@ -203,15 +217,17 @@ function ProductDetail({ product, onClose, onMarketplaceClick }) {
   useEffect(() => { document.body.classList.add('locked'); const navigate = e => { if(e.key==='Escape')onClose();if(images.length>1&&e.key==='ArrowLeft')go(-1);if(images.length>1&&e.key==='ArrowRight')go(1) }; document.addEventListener('keydown', navigate); return () => { document.body.classList.remove('locked'); document.removeEventListener('keydown', navigate) } }, [onClose,images.length])
   const beginSwipe=event=>{touchStart.current=event.changedTouches[0].clientX}
   const endSwipe=event=>{if(touchStart.current===null||images.length<2)return;const distance=touchStart.current-event.changedTouches[0].clientX;touchStart.current=null;if(Math.abs(distance)>45)go(distance>0?1:-1)}
-  return <div className="product-detail-backdrop" onMouseDown={e => e.target === e.currentTarget && onClose()}><article className="product-detail"><button className="product-detail-close" onClick={onClose} aria-label="Fechar anúncio">×</button><div className="detail-gallery" onTouchStart={beginSwipe} onTouchEnd={endSwipe}><div className="detail-slide" key={selectedImage}><ProductVisual product={product} imageUrl={selectedImage}/></div>{images.length>1&&<><div className="detail-carousel-controls"><button type="button" onClick={()=>go(-1)} aria-label="Imagem anterior">←</button><span aria-live="polite">{selectedIndex+1} / {images.length}</span><button type="button" onClick={()=>go(1)} aria-label="Próxima imagem">→</button></div><div className="detail-thumbnails">{images.map((image,index)=><button type="button" className={selectedIndex===index?'active':''} key={image.id||image.url||index} onClick={()=>setSelectedIndex(index)} aria-label={`Ver imagem ${index+1}`}><img src={image.url} alt={image.altText||`${product.name} — imagem ${index+1}`}/></button>)}</div></>}<div className="detail-index"><span>TRISO / PRODUTO</span><b>#{String(product.id).slice(-5)}</b></div></div><div className="detail-copy"><span className="eyebrow">{categories[product.category] || 'Outros'}</span><h1>{product.name}</h1><p className="detail-description">{product.description}</p><div className="detail-price"><small>A partir de</small><strong>{money(product.price)}</strong></div><div className="detail-specs"><div><span>Material</span><b>PLA Premium</b></div><div><span>Produção</span><b>Sob demanda</b></div><div><span>Origem</span><b>São Paulo, BR</b></div></div><div className="detail-marketplaces"><div><span>ONDE COMPRAR</span><small>Você será direcionado para o anúncio oficial</small></div>{listings.length ? listings.map((listing,index)=><a key={`${listing.name}-${index}`} className={`marketplace-link detail-market-${listing.name.toLowerCase().replaceAll(' ','-')}`} href={listing.url} target="_blank" rel="noopener noreferrer" onClick={() => onMarketplaceClick(product, listing)}><span><i>{listing.name.slice(0,2).toUpperCase()}</i><b>Comprar no {listing.name}</b></span><ExternalIcon/></a>) : <p className="no-listings">Este produto ainda não está disponível em marketplaces.</p>}</div><div className="detail-safe"><span>✓</span><p><b>Compra externa e segura</b><small>Pagamento, entrega e garantia são processados pelo marketplace escolhido.</small></p></div></div></article></div>
+  return <div className="product-detail-backdrop" onMouseDown={e => e.target === e.currentTarget && onClose()}><article className="product-detail"><button className="product-detail-close" onClick={onClose} aria-label="Fechar produto">×</button><div className="detail-gallery" onTouchStart={beginSwipe} onTouchEnd={endSwipe}><div className="detail-slide" key={selectedImage}><ProductVisual product={product} imageUrl={selectedImage}/></div>{images.length>1&&<><div className="detail-carousel-controls"><button type="button" onClick={()=>go(-1)} aria-label="Imagem anterior">←</button><span aria-live="polite">{selectedIndex+1} / {images.length}</span><button type="button" onClick={()=>go(1)} aria-label="Próxima imagem">→</button></div><div className="detail-thumbnails">{images.map((image,index)=><button type="button" className={selectedIndex===index?'active':''} key={image.id||image.url||index} onClick={()=>setSelectedIndex(index)} aria-label={`Ver imagem ${index+1}`}><img src={image.url} alt={image.altText||`${product.name} — imagem ${index+1}`}/></button>)}</div></>}<div className="detail-index"><span>TRISO / PRODUTO</span><b>#{String(product.id).slice(-5)}</b></div></div><div className="detail-copy"><span className="eyebrow">{categories[product.category] || 'Outros'}</span><h1>{product.name}</h1><p className="detail-description">{product.description}</p><div className="detail-price"><small>A partir de</small><strong>{money(product.price)}</strong></div><div className="detail-specs"><div><span>Material</span><b>PLA Premium</b></div><div><span>Produção</span><b>Sob demanda</b></div><div><span>Origem</span><b>São Paulo, BR</b></div></div><div className="detail-buy-actions"><button type="button" className="button button-primary" onClick={()=>add(product.id)}>Adicionar ao carrinho</button><button type="button" className="button button-light" onClick={()=>{add(product.id);window.history.pushState({},'', '/carrinho');window.dispatchEvent(new PopStateEvent('popstate'))}}>Comprar agora</button></div><div className="detail-safe"><span>✓</span><p><b>Compra segura pela Triso</b><small>Pagamento e acompanhamento do pedido acontecem diretamente aqui.</small></p></div></div></article></div>
 }
 
 function Manifesto() { return <section className="manifesto"><div className="container manifesto-grid"><div className="manifesto-art"><div className="wire-sphere"><i/><i/><i/><i/></div><span className="axis axis-x">X</span><span className="axis axis-y">Y</span><span className="axis axis-z">Z</span><span className="dimension dim-a">Ø 180 MM</span><span className="dimension dim-b">240 CAMADAS</span></div><div className="manifesto-copy" id="sobre"><span className="eyebrow">Por que a Triso?</span><h2>Menos estoque.<br/>Mais intenção.</h2><p>Não fazemos objetos para preencher prateleiras. Criamos peças que resolvem, organizam e expressam — produzidas apenas quando você escolhe.</p><div className="manifesto-points"><div><b>98%</b><span>do material pode ser reaproveitado</span></div><div><b>0</b><span>estoque produzido sem necessidade</span></div><div><b>1:1</b><span>cuidado em cada peça impressa</span></div></div></div></div></section> }
-function Footer() { return <footer className="footer"><div className="container"><div className="footer-main"><Brand large/><p>Objetos autorais produzidos<br/>camada por camada em São Paulo.</p><div className="footer-links"><div><b>Loja</b><a href="#loja">Todos os produtos</a><a href="#colecoes">Coleções</a></div><div><b>Ajuda</b><a href="mailto:contato@trisostudio.com.br">Contato</a><a href="#inicio">Envios e prazos</a></div><div><b>Gestão</b><a href="?admin=1">Área administrativa →</a></div></div></div><div className="footer-bottom"><span>© 2026 Triso Studio</span><span>Design local · Produção consciente</span></div></div></footer> }
+function Footer() { return <footer className="footer"><div className="container"><div className="footer-main"><Brand large/><p>Objetos autorais produzidos<br/>camada por camada em São Paulo.</p><div className="footer-links"><div><b>Loja</b><a href="#loja">Todos os produtos</a><a href="#colecoes">Coleções</a></div><div><b>Ajuda</b><a href="mailto:contato@trisostudio.com.br">Contato</a><a href="#inicio">Envios e prazos</a></div><div><b>Conta</b><a href="/minha-conta">Minha conta →</a></div></div></div><div className="footer-bottom"><span>© 2026 Triso Studio</span><span>Design local · Produção consciente</span></div></div></footer> }
 
 function PublicStore({ products, recordClick, productError, productsLoading, onRetryProducts }) {
+  const { add } = useCart()
   const [filter,setFilter]=useState('todos')
   const [selected,setSelected]=useState(null)
+  const openProduct=async product=>{setSelected(product);if(!product.slug)return;try{const detail=await catalogService.getBySlug(product.slug);setSelected(current=>current?.slug===product.slug?detail:current)}catch{/* mantém os dados da listagem caso o detalhe não esteja disponível */}}
   useEffect(()=>{
     const elements=document.querySelectorAll('.hero-copy > *, .hero-stage, .section-heading > *, .collection-card, .shop-top > *, .filter-row, .product-card, .manifesto-art, .manifesto-copy > *, .footer-main > *')
     elements.forEach((element,index)=>{element.classList.add('reveal');element.style.setProperty('--reveal-delay',`${Math.min(index%6,5)*55}ms`)})
@@ -223,13 +239,35 @@ function PublicStore({ products, recordClick, productError, productsLoading, onR
     })})
     return()=>{cancelAnimationFrame(firstFrame);cancelAnimationFrame(secondFrame);observer?.disconnect()}
   },[products.length])
-  return <><Header/><main><Hero products={products} loading={productsLoading}/><Collections setFilter={setFilter}/><Shop products={products} filter={filter} setFilter={setFilter} onOpen={setSelected} error={productError} loading={productsLoading} onRetry={onRetryProducts}/><Manifesto/></main><Footer/>{selected&&<ProductDetail product={selected} onClose={()=>setSelected(null)} onMarketplaceClick={recordClick}/>}</>
+  return <><Header/><main><Hero products={products} loading={productsLoading}/><Collections setFilter={setFilter}/><Shop products={products} filter={filter} setFilter={setFilter} onOpen={openProduct} onAdd={add} error={productError} loading={productsLoading} onRetry={onRetryProducts}/><Manifesto/></main><Footer/>{selected&&<ProductDetail product={selected} onClose={()=>setSelected(null)} onMarketplaceClick={recordClick}/>}</>
 }
 
 function Login({ onLogin }) {
   const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState('')
   const submit=async e=>{e.preventDefault();setError('');try{const session=await authService.login({email,password});onLogin(session)}catch(err){setError(err.message)}}
   return <main className="auth-page"><div className="auth-side"><Brand/><div><span className="eyebrow">Painel Triso</span><h1>Sua vitrine,<br/>sob controle.</h1><p>Cadastre produtos e mantenha os links dos marketplaces sempre atualizados.</p></div><small>ACESSO RESTRITO · ADMINISTRAÇÃO</small></div><div className="auth-form-wrap"><a className="back-store" href="/">← Voltar para a loja</a><form className="auth-form" onSubmit={submit}><span className="admin-kicker">LOGIN / ADMIN</span><h2>Bem-vindo de volta.</h2><p>Entre com suas credenciais para gerenciar o catálogo.</p><label>E-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="seu@email.com" autoComplete="username" required/></label><label>Senha<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" required/></label>{error&&<div className="form-error">{error}</div>}<button className="admin-primary" type="submit">Entrar no painel <span>→</span></button>{APP_CONFIG.dataSource==='mock'&&<div className="demo-login"><b>Ambiente de demonstração</b><span>Credenciais definidas no banco mockado.</span></div>}</form></div></main>
+}
+
+function UniversalAuthPage({ register = false }) {
+  const { login, register: createAccount, logout } = useAuth()
+  const [form,setForm]=useState({ name:'',email:'',password:'',confirmation:'' })
+  const [error,setError]=useState('')
+  const [busy,setBusy]=useState(false)
+  const submit=async event=>{
+    event.preventDefault()
+    if(register&&form.password!==form.confirmation){setError('As senhas não coincidem.');return}
+    setBusy(true);setError('')
+    try{
+      const user=register?await createAccount(form):await login(form)
+      if(!isCustomer(user)&&!hasAdminAccess(user)){await logout();throw new Error('Esta conta não possui uma permissão autorizada.')}
+      const returnTo=sessionStorage.getItem('triso_return_to')
+      sessionStorage.removeItem('triso_return_to')
+      const target=isCustomer(user)&&returnTo?.startsWith('/')&&!returnTo.startsWith('/admin')?returnTo:getAuthenticatedHome(user)
+      window.history.pushState({}, '', target)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    }catch(err){setError(err.message||'Não foi possível entrar.');setBusy(false)}
+  }
+  return <main className="auth-page"><div className="auth-side"><Brand/><div><span className="eyebrow">Triso Studio</span><h1>{register?'Crie sua conta,':'Bem-vindo de'}<br/>{register?'compre direto.':'volta.'}</h1><p>Entre para acompanhar pedidos, finalizar sua compra e acessar sua conta.</p></div><small>COMPRA DIRETA · PAGAMENTO SEGURO</small></div><div className="auth-form-wrap"><a className="back-store" href="/">← Voltar para a loja</a><form className="auth-form" onSubmit={submit}><span className="admin-kicker">{register?'CADASTRO':'ENTRAR'} / TRISO</span><h2>{register?'Crie sua conta.':'Acesse sua conta.'}</h2><p>{register?'Seus dados permitem acompanhar pedidos e finalizar compras.':'Use suas credenciais para continuar.'}</p>{register&&<label>Nome<input value={form.name} onChange={event=>setForm({...form,name:event.target.value})} minLength="2" autoComplete="name" required/></label>}<label>E-mail<input type="email" value={form.email} onChange={event=>setForm({...form,email:event.target.value})} autoComplete="email" required/></label><label>Senha<input type="password" value={form.password} onChange={event=>setForm({...form,password:event.target.value})} minLength="8" autoComplete={register?'new-password':'current-password'} required/></label>{register&&<label>Confirme a senha<input type="password" value={form.confirmation} onChange={event=>setForm({...form,confirmation:event.target.value})} minLength="8" autoComplete="new-password" required/></label>}{error&&<div className="form-error" role="alert">{error}</div>}<button className="admin-primary" type="submit" disabled={busy}>{busy?(register?'Criando conta...':'Entrando...'):register?'Criar conta':'Entrar'} <span>→</span></button><p className="auth-switch">{register?<>Já possui conta? <a href="/entrar">Entrar</a></>:<>Ainda não tem conta? <a href="/cadastro">Criar conta</a></>}</p></form></div></main>
 }
 
 function ProductImagesEditor({ images, art, onImagesChange, onArtChange }) {
@@ -246,13 +284,13 @@ function ProductImagesEditor({ images, art, onImagesChange, onArtChange }) {
   </div>
 }
 
-function ProductForm({ product, onSave, onClose, categoryOptions, marketplaceOptions }) {
+function ProductForm({ product, onSave, onClose, categoryOptions, marketplaceOptions, canManageCatalogOptions=false }) {
   const remoteOptions=useCatalogOptions(true)
   const [categoryModalOpen,setCategoryModalOpen]=useState(false)
   const [marketplaceModalOpen,setMarketplaceModalOpen]=useState(false)
   const [saving,setSaving]=useState(false)
   categoryOptions=categoryOptions||remoteOptions.categories
-  marketplaceOptions=marketplaceOptions||remoteOptions.marketplaces
+  marketplaceOptions=marketplaceOptions||remoteOptions.marketplaces||[]
   if(!marketplaceOptions.length)marketplaceOptions=EMPTY_MARKETPLACE_OPTIONS
   const [form,setForm]=useState(() => {
     const source = product || emptyProduct
@@ -278,9 +316,11 @@ function ProductForm({ product, onSave, onClose, categoryOptions, marketplaceOpt
           <div className="form-grid">
             <label className="field-wide">Nome do produto<input minLength="2" maxLength="120" value={form.name} onChange={e=>set('name',e.target.value)} required/></label>
             <label>Preço inicial (R$)<input type="number" min="0" step="0.01" value={form.price} onChange={e=>set('price',e.target.value)} required/></label>
-            <label>Categoria<select value={form.categoryId} onChange={e=>set('categoryId',e.target.value)} required><option value="" disabled>Selecione</option>{categoryOptions.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}</select><button className="category-create-inline" type="button" onClick={()=>setCategoryModalOpen(true)}>Gerenciar categorias</button></label>
+            <label>Categoria<select value={form.categoryId} onChange={e=>set('categoryId',e.target.value)} required><option value="" disabled>Selecione</option>{categoryOptions.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}</select>{canManageCatalogOptions&&<button className="category-create-inline" type="button" onClick={()=>setCategoryModalOpen(true)}>Gerenciar categorias</button>}</label>
             <label className="field-wide">Descrição<textarea maxLength="2000" value={form.description} onChange={e=>set('description',e.target.value)} rows="3"/></label>
             <label className="field-wide">Selo do produto<input value={form.badge||''} onChange={e=>set('badge',e.target.value)} placeholder="Novo, Destaque..."/></label>
+            <label className="status-toggle field-wide"><input type="checkbox" checked={form.requiresShipping!==false} onChange={e=>set('requiresShipping',e.target.checked)}/><i/><span><b>Produto requer envio</b><small>Ative para informar dados usados na cotação de frete.</small></span></label>
+            {form.requiresShipping!==false&&<div className="field-wide logistics-fields"><label>Peso (g)<input type="number" min="1" step="1" value={form.weightGrams??''} onChange={e=>set('weightGrams',e.target.value)} required/></label><label>Largura (cm)<input type="number" min="0.01" step="0.01" value={form.widthCm??''} onChange={e=>set('widthCm',e.target.value)} required/></label><label>Altura (cm)<input type="number" min="0.01" step="0.01" value={form.heightCm??''} onChange={e=>set('heightCm',e.target.value)} required/></label><label>Comprimento (cm)<input type="number" min="0.01" step="0.01" value={form.lengthCm??''} onChange={e=>set('lengthCm',e.target.value)} required/></label></div>}
           </div>
           <div className="form-preview"><span>PRÉ-VISUALIZAÇÃO</span><ProductVisual product={form}/><h3>{form.name||'Nome do produto'}</h3><p>{form.marketplaces.length} canais · {form.price?money(form.price):'R$ 0,00'}</p></div>
         </div>
@@ -289,15 +329,15 @@ function ProductForm({ product, onSave, onClose, categoryOptions, marketplaceOpt
           <div className="marketplace-fields field-wide">
             <div className="marketplace-fields-head"><span><b>Anúncios nos marketplaces</b><small>Informe o marketplace, o link e o identificador externo do anúncio</small></span><button type="button" onClick={addListing} disabled={form.marketplaces.length>=10}>+ Adicionar canal</button></div>
             <div className="marketplace-fields-box">{form.marketplaces.map((listing,index)=><div className="marketplace-field-row" key={listing.id||index}><select value={listing.marketplaceId||''} onChange={e=>setListingMarketplace(index,e.target.value)} required><option value="" disabled>Marketplace</option>{marketplaceOptions.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}</select><input type="url" pattern="https://.*" value={listing.url} onChange={e=>setListing(index,'url',e.target.value)} placeholder="Link HTTPS do anúncio" required/><input maxLength="120" value={listing.externalProductId||''} onChange={e=>setListing(index,'externalProductId',e.target.value)} placeholder="ID externo (ex.: MLB123456)"/><button type="button" onClick={()=>removeListing(index)} aria-label="Remover canal">×</button></div>)}</div>
-            <button className="marketplace-manage-button" type="button" onClick={()=>setMarketplaceModalOpen(true)}>Gerenciar marketplaces</button>
+            {canManageCatalogOptions&&<button className="marketplace-manage-button" type="button" onClick={()=>setMarketplaceModalOpen(true)}>Gerenciar marketplaces</button>}
           </div>
           <label className="status-toggle field-wide"><input type="checkbox" checked={form.active} onChange={e=>set('active',e.target.checked)}/><i/><span><b>Produto publicado</b><small>Aparece na vitrine pública</small></span></label>
         </div>
         <div className="modal-actions"><button type="button" className="admin-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="admin-primary" disabled={saving}>{saving?'Salvando...':<>Salvar produto <span>→</span></>}</button></div>
       </form>
     </div></div>
-    {categoryModalOpen&&<CategoryModal onClose={()=>setCategoryModalOpen(false)} onChanged={categoriesChanged}/>}
-    {marketplaceModalOpen&&<MarketplaceModal onClose={()=>setMarketplaceModalOpen(false)} onChanged={marketplacesChanged}/>}
+    {canManageCatalogOptions&&categoryModalOpen&&<CategoryModal onClose={()=>setCategoryModalOpen(false)} onChanged={categoriesChanged}/>}
+    {canManageCatalogOptions&&marketplaceModalOpen&&<MarketplaceModal onClose={()=>setMarketplaceModalOpen(false)} onChanged={marketplacesChanged}/>}
   </>
 }
 
@@ -412,41 +452,65 @@ function AnnouncementChooserModal({ product, onClose }) {
   return <div className="admin-modal-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><div className="announcement-chooser-modal" role="dialog" aria-modal="true" aria-labelledby="announcement-chooser-title"><div className="modal-head"><div><span className="admin-kicker">PRODUTO / ANÚNCIOS</span><h2 id="announcement-chooser-title">Escolha onde abrir</h2></div><button type="button" onClick={onClose} aria-label="Fechar">×</button></div><div className="announcement-chooser-body"><p>Este produto possui {listings.length} canais de venda.</p>{listings.map((listing,index)=><a href={listing.url} target="_blank" rel="noreferrer" onClick={onClose} key={listing.id||`${listing.marketplaceId}-${index}`}><span><i>{listing.name.slice(0,2).toUpperCase()}</i><b>{listing.name}</b></span><small>{listing.externalProductId||'Abrir anúncio'} <ExternalIcon/></small></a>)}</div><div className="modal-actions"><button type="button" className="admin-secondary" onClick={onClose}>Cancelar</button></div></div></div>
 }
 
+function ShippingOriginSettings({ onClose }) {
+  const [form,setForm]=useState({originPostalCode:'',originStreet:'',originNumber:'',originComplement:'',originNeighborhood:'',originCity:'',originState:''})
+  const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState('')
+  useEffect(()=>{const controller=new AbortController();shippingSettingsService.get(controller.signal).then(value=>{if(value)setForm(current=>({...current,...value}))}).catch(err=>{if(err.name!=='AbortError')setError(err.message)}).finally(()=>setLoading(false));return()=>controller.abort()},[])
+  const submit=async event=>{event.preventDefault();const originPostalCode=form.originPostalCode.replace(/\D/g,'');const originState=form.originState.trim().toUpperCase();if(!/^\d{8}$/.test(originPostalCode)||!/^([A-Z]{2})$/.test(originState)){setError('Informe CEP com 8 dígitos e UF com 2 letras.');return}setSaving(true);setError('');try{await shippingSettingsService.save({...form,originPostalCode,originState});onClose()}catch(err){setError(err.message)}finally{setSaving(false)}}
+  return <div className="admin-modal-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><div className="shipping-origin-modal" role="dialog" aria-modal="true" aria-labelledby="shipping-origin-title"><div className="modal-head"><div><span className="admin-kicker">FRETE / ORIGEM</span><h2 id="shipping-origin-title">Editar origem de envio</h2></div><button type="button" onClick={onClose} aria-label="Fechar">×</button></div>{loading?<div className="shipping-origin-loading">Carregando origem de envio...</div>:<form onSubmit={submit}><p>Endereço usado para cotar frete no Melhor Envio.</p><div className="shipping-origin-grid"><label>CEP<input inputMode="numeric" maxLength="9" value={form.originPostalCode} onChange={e=>setForm({...form,originPostalCode:e.target.value})} required/></label><label>Rua<input value={form.originStreet||''} onChange={e=>setForm({...form,originStreet:e.target.value})} required/></label><label>Número<input value={form.originNumber||''} onChange={e=>setForm({...form,originNumber:e.target.value})} required/></label><label>Complemento<input value={form.originComplement||''} onChange={e=>setForm({...form,originComplement:e.target.value})}/></label><label>Bairro<input value={form.originNeighborhood||''} onChange={e=>setForm({...form,originNeighborhood:e.target.value})} required/></label><label>Cidade<input value={form.originCity||''} onChange={e=>setForm({...form,originCity:e.target.value})} required/></label><label>UF<input maxLength="2" value={form.originState||''} onChange={e=>setForm({...form,originState:e.target.value.toUpperCase()})} required/></label></div>{error&&<p className="form-error">{error}</p>}<div className="modal-actions"><button type="button" className="admin-secondary" onClick={onClose}>Cancelar</button><button className="admin-primary" disabled={saving}>{saving?'Salvando...':'Salvar origem'}</button></div></form>}</div></div>
+}
+
 function AdminDashboard({ products,saveProduct,toggleProduct,removeProduct,clicks,session,onLogout,productError,onRetryProducts }) {
-  const canManageProducts=permissionAccess(session).manageProducts
-  const [query,setQuery]=useState(''),[editing,setEditing]=useState(null),[formOpen,setFormOpen]=useState(false),[confirmDelete,setConfirmDelete]=useState(null),[announcementProduct,setAnnouncementProduct]=useState(null)
+  const access=permissionAccess(session)
+  const canManageProducts=access.manageProducts
+  const [query,setQuery]=useState(''),[editing,setEditing]=useState(null),[formOpen,setFormOpen]=useState(false),[originOpen,setOriginOpen]=useState(false),[confirmDelete,setConfirmDelete]=useState(null),[announcementProduct,setAnnouncementProduct]=useState(null)
   const visible=products.filter(p=>`${p.name} ${p.marketplace}`.toLocaleLowerCase('pt-BR').includes(query.toLocaleLowerCase('pt-BR')))
   const save=async data=>{await saveProduct(data);setFormOpen(false);setEditing(null)}
   const toggle=async id=>{try{await toggleProduct(id)}catch(error){window.alert(error.message)}}
   const remove=async id=>{try{await removeProduct(id);setConfirmDelete(null)}catch(error){window.alert(error.message)}}
-  if(productError)return <main className="admin-shell"><AdminSidebar active="products" session={session} onLoggedOut={onLogout}/><section className="admin-content"><header className="admin-top"><div><span className="admin-kicker">PAINEL / CATÁLOGO</span><h1>Produtos</h1><p>{canManageProducts?'Gerencie tudo o que aparece na vitrine da Triso.':'Consulte os produtos publicados na vitrine.'}</p></div></header><div className="admin-table-card"><div className="admin-empty"><p>Não foi possível carregar os produtos. {productError}</p><button className="admin-primary" type="button" onClick={onRetryProducts}>Tentar novamente</button></div></div></section></main>
+  if(productError)return <main className="admin-shell"><AdminSidebar active="products" session={session} onLoggedOut={onLogout}/><section className="admin-content"><header className="admin-top"><div><span className="admin-kicker">PAINEL / CATÁLOGO</span><h1>Produtos</h1><p>{canManageProducts?'Gerencie tudo o que aparece na vitrine da Triso.':'Consulte os produtos publicados na vitrine.'}</p></div>{access.manageCatalogOptions&&<button className="admin-secondary" type="button" onClick={()=>setOriginOpen(true)}>Editar origem</button>}</header><div className="admin-table-card"><div className="admin-empty"><p>Não foi possível carregar os produtos. {productError}</p><button className="admin-primary" type="button" onClick={onRetryProducts}>Tentar novamente</button></div></div></section>{originOpen&&<ShippingOriginSettings onClose={()=>setOriginOpen(false)}/>}</main>
   return <main className="admin-shell">
     <AdminSidebar active="products" session={session} onLoggedOut={onLogout}/>
     <section className="admin-content">
-      <header className="admin-top"><div><span className="admin-kicker">PAINEL / CATÁLOGO</span><h1>Produtos</h1><p>{canManageProducts?'Gerencie tudo o que aparece na vitrine da Triso.':'Consulte os produtos publicados na vitrine.'}</p></div>{canManageProducts&&<button className="admin-primary" onClick={()=>{setEditing(null);setFormOpen(true)}}><PlusIcon/> Novo produto</button>}</header>
+      <header className="admin-top"><div><span className="admin-kicker">PAINEL / CATÁLOGO</span><h1>Produtos</h1><p>{canManageProducts?'Gerencie tudo o que aparece na vitrine da Triso.':'Consulte os produtos publicados na vitrine.'}</p></div><div className="admin-top-actions">{access.manageCatalogOptions&&<button className="admin-secondary" type="button" onClick={()=>setOriginOpen(true)}>Editar origem</button>}{canManageProducts&&<button className="admin-primary" onClick={()=>{setEditing(null);setFormOpen(true)}}><PlusIcon/> Novo produto</button>}</div></header>
       <div className="admin-stats"><div><span>Total de produtos</span><b>{products.length}</b><small>itens cadastrados</small></div><div><span>Produtos ativos</span><b>{products.filter(p=>p.active).length}</b><small>visíveis na loja</small></div><div><span>Marketplaces</span><b>{new Set(products.map(p=>p.marketplace)).size}</b><small>canais conectados</small></div></div>
       <div className="admin-table-card"><div className="table-toolbar"><div><h2>Catálogo</h2><span>{visible.length} produtos</span></div><label><SearchIcon/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar produto..."/></label></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Produto</th><th>Categoria</th><th>Preço</th><th>Canal de venda</th><th>Status</th><th>{canManageProducts?'Ações':'Anúncio'}</th></tr></thead><tbody>{visible.map(product=><tr key={product.id}><td><div className="table-product"><ProductVisual product={product} small/><span><b>{product.name}</b><small>#{String(product.id).slice(-5)}</small></span></div></td><td>{categories[product.category]}</td><td><b>{money(product.price)}</b></td><td><span className="market-chip-admin">{product.marketplace}</span></td><td>{canManageProducts?<button className={`status-pill ${product.active?'active':''}`} onClick={()=>toggle(product.id)}><i/>{product.active?'Ativo':'Inativo'}</button>:<span className={`status-pill ${product.active?'active':''}`}><i/>{product.active?'Ativo':'Inativo'}</span>}</td><td><div className="table-actions"><AnnouncementButton product={product} onChoose={setAnnouncementProduct}/>{canManageProducts&&<><button title="Editar" onClick={()=>{setEditing(product);setFormOpen(true)}}><EditIcon/></button><button className="danger" title="Excluir" onClick={()=>setConfirmDelete(product)}><TrashIcon/></button></>}</div></td></tr>)}</tbody></table>{!visible.length&&<div className="admin-empty">Nenhum produto encontrado.</div>}</div></div>
     </section>
-    {canManageProducts&&formOpen&&<ProductForm product={editing} onSave={save} onClose={()=>{setFormOpen(false);setEditing(null)}}/>}
+    {canManageProducts&&formOpen&&<ProductForm product={editing} onSave={save} onClose={()=>{setFormOpen(false);setEditing(null)}} canManageCatalogOptions={access.manageCatalogOptions}/>}
+    {originOpen&&<ShippingOriginSettings onClose={()=>setOriginOpen(false)}/>}
     {announcementProduct&&<AnnouncementChooserModal product={announcementProduct} onClose={()=>setAnnouncementProduct(null)}/>}
     {canManageProducts&&confirmDelete&&<div className="admin-modal-backdrop"><div className="confirm-modal"><div className="confirm-icon"><TrashIcon/></div><h2>Excluir produto?</h2><p>“{confirmDelete.name}” será removido do catálogo. Esta ação não pode ser desfeita.</p><div><button className="admin-secondary" onClick={()=>setConfirmDelete(null)}>Cancelar</button><button className="admin-danger" onClick={()=>remove(confirmDelete.id)}>Sim, excluir</button></div></div></div>}
   </main>
 }
 
 export default function App() {
+  const auth = useAuth()
   const location=useSpaLocation()
   const routeParams=new URLSearchParams(location.search)
-  const isAdminRoute=routeParams.has('admin')
-  const [session,setSession]=useState(isAdminRoute?undefined:null)
-  useEffect(()=>{if(isAdminRoute)authService.getSession().then(value=>setSession(value||null)).catch(()=>setSession(null))},[isAdminRoute])
+  const adminPathMatch=location.pathname.match(/^\/admin(?:\/(produtos|usuarios))?\/?$/)
+  const isAdminRoute=routeParams.has('admin') || Boolean(adminPathMatch)
+  const customerRoute = isAdminRoute ? '' : location.pathname
+  let customerPage = null
+  if (customerRoute === '/carrinho') customerPage = <CartPage/>
+  if (customerRoute === '/entrar') customerPage = <UniversalAuthPage/>
+  if (customerRoute === '/cadastro') customerPage = <UniversalAuthPage register/>
+  if (customerRoute === '/checkout') customerPage = <CheckoutPage/>
+  if (customerRoute === '/payment/success') customerPage = <PaymentReturnPage/>
+  const confirmationMatch = customerRoute.match(/^\/pedido\/([^/]+)\/confirmacao$/)
+  if (confirmationMatch) customerPage = <ConfirmationPage orderId={confirmationMatch[1]}/>
+  const orderMatch = customerRoute.match(/^\/minha-conta\/pedidos\/([^/]+)$/)
+  if (orderMatch) customerPage = <AccountPage detailId={orderMatch[1]}/>
+  if (customerRoute === '/minha-conta' || customerRoute === '/minha-conta/pedidos') customerPage = <AccountPage/>
+  const session=isAdminRoute?auth.user:null
   const {products,loading,error,reload,saveProduct,toggleProduct,removeProduct}=useProducts(!isAdminRoute?'public':session?'admin':null)
   const [clicks,recordClick]=useClicks()
-  if(session===undefined)return <div className="app-loading"><span/><p>Carregando Triso...</p></div>
-  if(!isAdminRoute)return <PublicStore products={products} recordClick={recordClick} productError={error} productsLoading={loading} onRetryProducts={reload}/>
-  if(!session)return <Login onLogin={setSession}/>
-  const adminView=routeParams.get('view')
+  if(isAdminRoute&&auth.isLoadingSession)return <div className="app-loading"><span/><p>Carregando Triso...</p></div>
+  if(!isAdminRoute)return customerPage || <PublicStore products={products} recordClick={recordClick} productError={error} productsLoading={loading} onRetryProducts={reload}/>
+  if(!session)return <UniversalAuthPage/>
+  if(!auth.hasAdminAccess)return <AccountPage/>
+  const adminView=adminPathMatch?.[1] === 'produtos' ? 'products' : adminPathMatch?.[1] === 'usuarios' ? 'users' : routeParams.get('view')
   const access=permissionAccess(session)
-  if(adminView==='users'&&access.viewUsers)return <UsersPage session={session} onLogout={()=>setSession(null)}/>
-  if(adminView==='products')return <AdminDashboard products={products} saveProduct={saveProduct} toggleProduct={toggleProduct} removeProduct={removeProduct} clicks={clicks} session={session} onLogout={()=>setSession(null)} productError={error} onRetryProducts={reload}/>
-  return <AnalyticsPage clicks={clicks} session={session} onLogout={()=>setSession(null)}/>
+  if(adminView==='users'&&access.viewUsers)return <UsersPage session={session} onLogout={auth.logout}/>
+  if(adminView==='products')return <AdminDashboard products={products} saveProduct={saveProduct} toggleProduct={toggleProduct} removeProduct={removeProduct} clicks={clicks} session={session} onLogout={auth.logout} productError={error} onRetryProducts={reload}/>
+  return <AnalyticsPage clicks={clicks} session={session} onLogout={auth.logout}/>
 }
