@@ -8,9 +8,19 @@ export const userService = {
     const permissions = unwrap(await apiClient.get(APP_CONFIG.endpoints.adminPermissions))
     return Array.isArray(permissions) ? permissions : []
   },
-  async list() {
-    const users = unwrap(await apiClient.get(APP_CONFIG.endpoints.adminUsers))
+  async list({ accountType = 'all', active } = {}) {
+    const query = new URLSearchParams()
+    if (accountType && accountType !== 'all') query.set('accountType', accountType)
+    if (typeof active === 'boolean') query.set('active', String(active))
+    const suffix = query.size ? `?${query}` : ''
+    const users = unwrap(await apiClient.get(`${APP_CONFIG.endpoints.adminUsers}${suffix}`))
     return Array.isArray(users) ? users : []
+  },
+  async listTaskAssignees() {
+    const body = await apiClient.get(`${APP_CONFIG.endpoints.adminUsers}?accountType=administrative&active=true`)
+    const data = body?.data ?? body
+    if (Array.isArray(data)) return data
+    return data?.items || data?.users || []
   },
   async create(user) {
     const payload = {

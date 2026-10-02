@@ -18,6 +18,8 @@ import {
 } from "./features/commerce/CommercePages.jsx";
 import { accountService } from "./services/accountService.js";
 import { shippingSettingsService } from "./services/shippingSettingsService.js";
+import { orderService } from "./services/orderService.js";
+import { taskService } from "./services/taskService.js";
 import {
   getAuthenticatedHome,
   hasAdminAccess,
@@ -299,6 +301,8 @@ function AdminSidebar({ active, session, onLoggedOut }) {
   const access = permissionAccess(session);
   const links = [
     { id: "dashboard", href: "/admin", icon: "⌁", label: "Dashboard" },
+    { id: "orders", href: "/admin/pedidos", icon: "→", label: "Pedidos" },
+    { id: "tasks", href: "/admin/tarefas", icon: "✓", label: "Tarefas" },
     { id: "products", href: "/admin/produtos", icon: "▦", label: "Produtos" },
     {
       id: "users",
@@ -330,8 +334,8 @@ function AdminSidebar({ active, session, onLoggedOut }) {
             {link.label}
           </a>
         ))}
-        <a href="/" target="_blank">
-          <i>↗</i> Ver loja
+        <a href="/">
+          <i>↗</i> Voltar à loja
         </a>
       </nav>
       <div className="admin-user">
@@ -480,7 +484,7 @@ function Hero({ products, loading }) {
           </h1>
           <p>
             Objetos autorais para casa, setup e rotina. Escolha seu produto e
-            compre com segurança no seu marketplace preferido.
+            compre com segurança diretamente pela Triso.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href="#loja">
@@ -633,7 +637,6 @@ function CollectionInfo({ code, children }) {
 
 function ProductCard({ product, onOpen, onAdd }) {
   const { add } = useCart();
-  const listings = getMarketplaces(product);
   return (
     <article
       className="product-card product-card-clickable"
@@ -649,7 +652,6 @@ function ProductCard({ product, onOpen, onAdd }) {
           <strong>{money(product.price)}</strong>
         </div>
         <p>{product.description}</p>
-        
       </div>
     </article>
   );
@@ -673,9 +675,7 @@ function Shop({
       (p) =>
         p.active &&
         (filter === "todos" || p.category === filter) &&
-        `${p.name} ${p.description} ${getMarketplaces(p)
-          .map((m) => m.name)
-          .join(" ")}`
+        `${p.name} ${p.description}`
           .toLocaleLowerCase("pt-BR")
           .includes(q),
     );
@@ -774,9 +774,8 @@ function Shop({
   );
 }
 
-function ProductDetail({ product, onClose, onMarketplaceClick }) {
+function ProductDetail({ product, onClose, onAdded }) {
   const { add } = useCart();
-  const listings = getMarketplaces(product);
   const images = (product.images || []).filter((image) => image.url);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const touchStart = useRef(null);
@@ -807,6 +806,10 @@ function ProductDetail({ product, onClose, onMarketplaceClick }) {
     const distance = touchStart.current - event.changedTouches[0].clientX;
     touchStart.current = null;
     if (Math.abs(distance) > 45) go(distance > 0 ? 1 : -1);
+  };
+  const addToCart = () => {
+    add(product.id);
+    onAdded(product);
   };
   return (
     <div
@@ -903,7 +906,7 @@ function ProductDetail({ product, onClose, onMarketplaceClick }) {
             <button
               type="button"
               className="button button-primary"
-              onClick={() => add(product.id)}
+              onClick={addToCart}
             >
               Adicionar ao carrinho
             </button>
@@ -1029,6 +1032,7 @@ function PublicStore({
   const { add } = useCart();
   const [filter, setFilter] = useState("todos");
   const [selected, setSelected] = useState(null);
+  const [cartNotice, setCartNotice] = useState(null);
   const openProduct = async (product) => {
     setSelected(product);
     if (!product.slug) return;
@@ -1078,6 +1082,11 @@ function PublicStore({
       observer?.disconnect();
     };
   }, [products.length]);
+  useEffect(() => {
+    if (!cartNotice) return undefined;
+    const timer = window.setTimeout(() => setCartNotice(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [cartNotice]);
   return (
     <>
       <SiteHeader />
@@ -1101,8 +1110,29 @@ function PublicStore({
         <ProductDetail
           product={selected}
           onClose={() => setSelected(null)}
-          onMarketplaceClick={recordClick}
+          onAdded={(product) => {
+            setSelected(null);
+            setCartNotice(product);
+          }}
         />
+      )}
+      {cartNotice && (
+        <aside className="cart-add-toast" role="status">
+          <div>
+            <span>✓ ADICIONADO AO CARRINHO</span>
+            <b>{cartNotice.name}</b>
+          </div>
+          <a href="/carrinho">
+            Ver carrinho <i>→</i>
+          </a>
+          <button
+            type="button"
+            onClick={() => setCartNotice(null)}
+            aria-label="Fechar aviso"
+          >
+            ×
+          </button>
+        </aside>
       )}
     </>
   );
@@ -1134,8 +1164,7 @@ function Login({ onLogin }) {
             sob controle.
           </h1>
           <p>
-            Cadastre produtos e mantenha os links dos marketplaces sempre
-            atualizados.
+            Cadastre e mantenha os produtos da loja atualizados.
           </p>
         </div>
         <small>ACESSO RESTRITO · ADMINISTRAÇÃO</small>
@@ -1702,29 +1731,13 @@ function ProductForm({
       window.alert("O produto pode ter no máximo 8 imagens.");
       return;
     }
-    const valid = form.marketplaces.filter(
-      (item) =>
-        item.marketplaceId &&
-        item.url &&
-        marketplaceOptions.some(
-          (option) => option.id === item.marketplaceId && !option.unavailable,
-        ),
-    );
-    if (
-      new Set(valid.map((item) => item.marketplaceId)).size !== valid.length
-    ) {
-      window.alert("Selecione cada marketplace apenas uma vez.");
-      return;
-    }
     setSaving(true);
     try {
+      const { marketplaces, marketplace, marketplaceUrl, ...productPayload } = form;
       await onSave({
-        ...form,
+        ...productPayload,
         price: Number(form.price),
         status: form.active ? "published" : "draft",
-        marketplaces: valid,
-        marketplace: valid[0]?.name || "",
-        marketplaceUrl: valid[0]?.url || "",
       });
     } catch (error) {
       window.alert(error.message);
@@ -1879,7 +1892,6 @@ function ProductForm({
                 <ProductVisual product={form} />
                 <h3>{form.name || "Nome do produto"}</h3>
                 <p>
-                  {form.marketplaces.length} canais ·{" "}
                   {form.price ? money(form.price) : "R$ 0,00"}
                 </p>
               </div>
@@ -2591,6 +2603,683 @@ function CleanAnalytics({ clicks }) {
   );
 }
 
+function AdminRevenueDashboard() {
+  const [data, setData] = useState(null),
+    [error, setError] = useState(""),
+    [selectedRegion, setSelectedRegion] = useState(""),
+    [hoveredChartIndex, setHoveredChartIndex] = useState(null);
+  const dashboardRequest = useRef(0);
+  const now = new Date();
+  const [periodType, setPeriodType] = useState("month"),
+    [year, setYear] = useState(String(now.getFullYear())),
+    [month, setMonth] = useState(String(now.getMonth()));
+  const dateKey = (date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const selectedYear = Number(year),
+    selectedMonth = Number(month);
+  const from = dateKey(
+    periodType === "year"
+      ? new Date(selectedYear, 0, 1)
+      : new Date(selectedYear, selectedMonth, 1),
+  );
+  const rangeEnd =
+    periodType === "year"
+      ? new Date(selectedYear, 11, 31)
+      : new Date(selectedYear, selectedMonth + 1, 0);
+  const to = dateKey(rangeEnd);
+  const load = (clearPrevious = false) => {
+    const request = ++dashboardRequest.current;
+    setError("");
+    if (clearPrevious) setData(null);
+    orderService
+      .adminDashboard(from, to, selectedRegion)
+      .then((result) => {
+        if (request === dashboardRequest.current) setData(result);
+      })
+      .catch((err) => {
+        if (request === dashboardRequest.current) setError(err.message);
+      });
+  };
+  useEffect(() => {
+    load(true);
+    const timer = window.setInterval(load, 15000);
+    return () => window.clearInterval(timer);
+  }, [from, to, selectedRegion]);
+  const dashboard = data?.data || data || {};
+  const summary = dashboard.summary || dashboard;
+  const reportedRevenue = Number(
+    summary.grossRevenueCents ||
+      summary.revenueCents ||
+      summary.totalRevenueCents ||
+      0,
+  );
+  const reportedOrders = Number(
+    summary.paidOrdersCount || summary.paidOrders || summary.ordersCount || 0,
+  );
+  const revenue = reportedRevenue;
+  const orders = reportedOrders;
+  const statusCounts = (dashboard.ordersByStatus || []).reduce(
+    (counts, item) => ({
+      ...counts,
+      [Number(item.status)]: Number(item.count || 0),
+    }),
+    Object.fromEntries(Array.from({ length: 7 }, (_, status) => [status, 0])),
+  );
+  const totalOrders = Number(
+    summary.totalOrdersCount ||
+      Object.values(statusCounts).reduce((total, count) => total + count, 0),
+  );
+  const cancelledOrders = statusCounts[6];
+  const ordersUrl = (filter = "") =>
+    filter ? `/admin/pedidos?filter=${filter}` : "/admin/pedidos";
+  const rawDaily =
+    dashboard.totalRevenueByDay ||
+    dashboard.revenueByDay ||
+    dashboard.revenuesByDay ||
+    [];
+  const rawRegionalDaily = selectedRegion
+    ? dashboard.regionalRevenueByDay ||
+      dashboard.selectedRegionRevenueByDay ||
+      []
+    : [];
+  const rawRevenueByRegionDay =
+    dashboard.revenueByRegionDay || dashboard.regionalRevenueByRegion || [];
+  const chartSlots = [];
+  if (periodType === "year") {
+    for (let monthIndex = 0; monthIndex < 12; monthIndex += 1) {
+      chartSlots.push(
+        `${selectedYear}-${String(monthIndex + 1).padStart(2, "0")}-01`,
+      );
+    }
+  } else {
+    const lastDay = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+    for (let day = 1; day <= lastDay; day += 1) {
+      chartSlots.push(
+        `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+      );
+    }
+  }
+  const slotKey = (date) =>
+    periodType === "year"
+      ? String(date).slice(0, 7)
+      : String(date).slice(0, 10);
+  const normaliseSeries = (series) => {
+    const values = series.reduce((map, item) => {
+      const key = slotKey(item.date);
+      map.set(key, (map.get(key) || 0) + Number(item.revenueCents || 0));
+      return map;
+    }, new Map());
+    return chartSlots.map((date) => ({
+      date,
+      revenueCents: values.get(slotKey(date)) || 0,
+    }));
+  };
+  const daily = normaliseSeries(rawDaily);
+  const regionalDaily = normaliseSeries(rawRegionalDaily);
+  const revenueByRegionDay = rawRevenueByRegionDay;
+  const max = Math.max(
+    ...daily.map((item) => Number(item.revenueCents || 0)),
+    ...regionalDaily.map((item) => Number(item.revenueCents || 0)),
+    ...revenueByRegionDay.map((item) => Number(item.revenueCents || 0)),
+    1,
+  );
+  const linePoints = daily
+    .map((item, index) => {
+      const x = daily.length === 1 ? 50 : 5 + (index / (daily.length - 1)) * 90;
+      const y = 92 - (Number(item.revenueCents || 0) / max) * 82;
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const totalBars = daily.map((item, index) => {
+    const slotWidth = 90 / Math.max(daily.length, 1);
+    const height = (Number(item.revenueCents || 0) / max) * 82;
+    return {
+      date: item.date,
+      x: 5 + index * slotWidth + Math.min(slotWidth * 0.16, 0.8),
+      width: Math.max(slotWidth * 0.68, 0.45),
+      y: 92 - height,
+      height,
+    };
+  });
+  const revenueByDateForRegion = (region) =>
+    new Map(
+      (selectedRegion === region && rawRegionalDaily.length
+        ? regionalDaily
+        : normaliseSeries(
+            revenueByRegionDay.filter(
+              (item) => (item.region || item.name) === region,
+            ),
+          )
+      ).map((item) => [item.date, Number(item.revenueCents || 0)]),
+    );
+  const linePointsForRegion = (region) => {
+    const values = revenueByDateForRegion(region);
+    return daily
+      .map((item, index) => {
+        const x =
+          daily.length === 1 ? 50 : 5 + (index / (daily.length - 1)) * 90;
+        const y = 92 - ((values.get(item.date) || 0) / max) * 82;
+        return `${x},${y}`;
+      })
+      .join(" ");
+  };
+  const lineLabelIndexes = Array.from(
+    new Set(
+      [
+        0,
+        Math.round((daily.length - 1) / 3),
+        Math.round(((daily.length - 1) * 2) / 3),
+        daily.length - 1,
+      ].filter((index) => index >= 0),
+    ),
+  );
+  const formatChartDate = (date) =>
+    new Date(`${date}T12:00:00`).toLocaleDateString(
+      "pt-BR",
+      periodType === "year"
+        ? { month: "short" }
+        : { day: "2-digit", month: "2-digit" },
+    );
+  const hoveredChart =
+    hoveredChartIndex === null ? null : daily[hoveredChartIndex];
+  const topProducts = dashboard.topProducts || [];
+  const topCategories = dashboard.topCategories || [];
+  const regionalSales =
+    dashboard.salesByRegion || dashboard.ordersByRegion || [];
+  const brazilRegions = [
+    ["Norte", "M8 7 L48 3 L62 24 L49 46 L16 40 Z"],
+    ["Nordeste", "M62 10 L95 18 L92 49 L69 54 L49 46 L62 24 Z"],
+    ["Centro-Oeste", "M36 47 L69 54 L67 78 L39 82 L22 63 Z"],
+    ["Sudeste", "M67 57 L94 51 L97 75 L74 82 L67 78 Z"],
+    ["Sul", "M55 82 L74 82 L68 98 L57 96 Z"],
+  ];
+  const regionPalette = {
+    Norte: "#2688c9",
+    Nordeste: "#e07930",
+    "Centro-Oeste": "#b88710",
+    Sudeste: "#d45378",
+    Sul: "#2e9b6c",
+  };
+  const regionColor = (name) => regionPalette[name] || "#6047cf";
+  const chartRegions = selectedRegion
+    ? [selectedRegion]
+    : brazilRegions
+        .map(([name]) => name)
+        .filter((region) =>
+          Array.from(revenueByDateForRegion(region).values()).some(
+            (value) => value > 0,
+          ),
+        );
+  const regionalMax = Math.max(
+    ...regionalSales.map((region) =>
+      Number(region.revenueCents || region.ordersCount || 0),
+    ),
+    1,
+  );
+  const regionalData = (name) =>
+    regionalSales.find((region) => (region.region || region.name) === name) ||
+    {};
+  const operations = dashboard.operations || {};
+  const liveOrders = operations.priorityOrders || [];
+  const liveInProgress = Number(operations.inProgressCount || 0);
+  const livePendingPayment = Number(operations.pendingPaymentCount || 0);
+  const liveAwaitingShipment = Number(operations.awaitingShipmentCount || 0);
+  const liveShipped = Number(operations.shippedCount || 0);
+  return (
+    <>
+      <section className="dashboard-live-operations">
+        <div className="dashboard-live-head">
+          <div>
+            <span className="admin-kicker">OPERAÇÃO / AO VIVO</span>
+            <h2>Pedidos em andamento</h2>
+            <p>
+              Fila atualizada automaticamente a cada 15 segundos, sem depender
+              do filtro abaixo.
+            </p>
+          </div>
+          <span className="live-indicator">Atualização automática</span>
+        </div>
+        <div className="dashboard-live-kpis">
+          <a href={ordersUrl()}>
+            <span>Em andamento</span>
+            <b>{liveInProgress}</b>
+            <small>Pedidos ainda não concluídos</small>
+          </a>
+          <a href={ordersUrl(0)}>
+            <span>Aguardando pagamento</span>
+            <b>{livePendingPayment}</b>
+            <small>Precisam de confirmação</small>
+          </a>
+          <a href={ordersUrl(1)}>
+            <span>Em produção e envio</span>
+            <b>{liveAwaitingShipment}</b>
+            <small>Pagos, em produção ou prontos</small>
+          </a>
+          <a href={ordersUrl(4)}>
+            <span>Em trânsito</span>
+            <b>{liveShipped}</b>
+            <small>Já enviados ao cliente</small>
+          </a>
+        </div>
+        <div className="dashboard-live-list">
+          <div className="dashboard-live-list-head">
+            <b>Prioridade operacional</b>
+            <a href={ordersUrl()}>Abrir fila completa →</a>
+          </div>
+          {liveOrders.length ? (
+            liveOrders.slice(0, 5).map((order) => (
+              <a
+                className="dashboard-live-order"
+                key={order.id || order.orderId}
+                href={ordersUrl(order.status)}
+              >
+                <span>
+                  <b>{order.orderNumber}</b>
+                  <small>
+                    {order.customerEmail ||
+                      order.user?.email ||
+                      "E-mail não informado"}
+                  </small>
+                </span>
+                <span>
+                  {adminOrderStatus[Number(order.status)] || "Pedido"}
+                </span>
+                <strong>{money(Number(order.totalCents || 0) / 100)}</strong>
+              </a>
+            ))
+          ) : (
+            <p className="dashboard-live-empty">
+              Não há pedidos em andamento neste momento.
+            </p>
+          )}
+        </div>
+      </section>
+      <div className="dashboard-analysis-head">
+        <div>
+          <span className="admin-kicker">ANÁLISE / PERÍODO</span>
+          <h2>Receita e desempenho</h2>
+          <p>Os dados abaixo respondem ao mês ou ano escolhido.</p>
+        </div>
+      </div>
+      <div className="dashboard-period">
+        <div>
+          <button
+            className={periodType === "month" ? "active" : ""}
+            onClick={() => setPeriodType("month")}
+          >
+            Mês
+          </button>
+          <button
+            className={periodType === "year" ? "active" : ""}
+            onClick={() => setPeriodType("year")}
+          >
+            Ano
+          </button>
+        </div>
+        {periodType === "month" && (
+          <select
+            value={month}
+            onChange={(event) => setMonth(event.target.value)}
+          >
+            {[
+              "Janeiro",
+              "Fevereiro",
+              "Março",
+              "Abril",
+              "Maio",
+              "Junho",
+              "Julho",
+              "Agosto",
+              "Setembro",
+              "Outubro",
+              "Novembro",
+              "Dezembro",
+            ].map((label, value) => (
+              <option key={label} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        )}
+        <select value={year} onChange={(event) => setYear(event.target.value)}>
+          {Array.from(
+            { length: 5 },
+            (_, index) => now.getFullYear() - index,
+          ).map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+      </div>
+      <>
+        <div className="dashboard-kpis">
+          <article>
+            <span>Total de pedidos</span>
+            <b>{totalOrders}</b>
+            <small>criados no período selecionado</small>
+          </article>
+          <article>
+            <span>Pedidos cancelados</span>
+            <b>{cancelledOrders}</b>
+            <small>cancelados no período selecionado</small>
+          </article>
+          <article>
+            <span>Receita de produtos</span>
+            <b>{money(revenue / 100)}</b>
+            <small>frete não incluído</small>
+          </article>
+          <article>
+            <span>Ticket médio</span>
+            <b>
+              {money(
+                Number(
+                  summary.averageTicketCents ||
+                    summary.averageOrderCents ||
+                    (orders ? Math.round(revenue / orders) : 0),
+                ) / 100,
+              )}
+            </b>
+            <small>por pedido pago</small>
+          </article>
+          <article className="dashboard-product-leader">
+            <span>Produto líder</span>
+            {topProducts.length ? (
+              <>
+                <b>{topProducts[0].name}</b>
+                <small>{topProducts[0].quantity} un. vendidas</small>
+              </>
+            ) : (
+              <small>Aguardando vendas no período.</small>
+            )}
+          </article>
+        </div>
+        <section className="dashboard-report-card">
+          <div>
+            <span className="admin-kicker">RECEITA / PERÍODO SELECIONADO</span>
+            <h2>Vendas ao longo do tempo</h2>
+            <p>
+              {rawDaily.length
+                ? selectedRegion
+                  ? `Comparativo entre o total Brasil e ${selectedRegion}.`
+                  : "Receita de produtos pagos por dia."
+                : "As vendas confirmadas aparecerão aqui assim que os primeiros pedidos forem pagos."}
+            </p>
+          </div>
+          <strong>
+            {money(revenue / 100)}
+            <small>receita total</small>
+          </strong>
+          {rawDaily.length ? (
+            <div className="dashboard-revenue-line-wrap">
+              <div className="dashboard-line-axis" aria-hidden="true">
+                <small>{money(max / 100)}</small>
+                <small>{money(Math.round(max / 2) / 100)}</small>
+                <small>R$ 0,00</small>
+              </div>
+              <div
+                className="dashboard-line-canvas"
+                style={{
+                  "--selected-region-color": regionColor(selectedRegion),
+                }}
+              >
+                <div className="dashboard-line-legend">
+                  <span>
+                    <i className="total-bar" />
+                    Total Brasil
+                  </span>
+                  {chartRegions.map((region) => (
+                    <span key={region}>
+                      <i
+                        className="region-line"
+                        style={{ background: regionColor(region) }}
+                      />
+                      {region}
+                    </span>
+                  ))}
+                </div>
+                <svg
+                  className="dashboard-revenue-line"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  role="img"
+                  aria-label="Receita por dia"
+                  onMouseLeave={() => setHoveredChartIndex(null)}
+                >
+                  <line
+                    className="revenue-line-grid"
+                    x1="5"
+                    x2="95"
+                    y1="10"
+                    y2="10"
+                  />
+                  <line
+                    className="revenue-line-grid"
+                    x1="5"
+                    x2="95"
+                    y1="51"
+                    y2="51"
+                  />
+                  <line
+                    className="revenue-line-grid"
+                    x1="5"
+                    x2="95"
+                    y1="92"
+                    y2="92"
+                  />
+                  {totalBars.map((bar) => (
+                    <rect
+                      key={bar.date}
+                      className="revenue-total-bar"
+                      x={bar.x}
+                      y={bar.y}
+                      width={bar.width}
+                      height={bar.height}
+                      rx="0.7"
+                    />
+                  ))}
+                  {chartRegions.map((region) => (
+                    <polyline
+                      key={region}
+                      className="revenue-region-stroke"
+                      points={linePointsForRegion(region)}
+                      style={{ stroke: regionColor(region) }}
+                    />
+                  ))}
+                  <line
+                    className="revenue-line-baseline"
+                    x1="5"
+                    x2="95"
+                    y1="92"
+                    y2="92"
+                  />
+                  {daily.map((item, index) => {
+                    const width = 90 / Math.max(daily.length, 1);
+                    const x = Math.max(
+                      5,
+                      5 +
+                        (index / Math.max(daily.length - 1, 1)) * 90 -
+                        width / 2,
+                    );
+                    return (
+                      <rect
+                        key={`hit-${item.date}`}
+                        className="dashboard-line-hit"
+                        x={x}
+                        y="8"
+                        width={width}
+                        height="86"
+                        onMouseEnter={() => setHoveredChartIndex(index)}
+                      />
+                    );
+                  })}
+                </svg>
+                {hoveredChart && (
+                  <div
+                    className="dashboard-line-tooltip"
+                    style={{
+                      left: `${daily.length === 1 ? 50 : 5 + (hoveredChartIndex / (daily.length - 1)) * 90}%`,
+                    }}
+                  >
+                    <b>{formatChartDate(hoveredChart.date)}</b>
+                    <span>
+                      Total Brasil{" "}
+                      <strong>
+                        {money(Number(hoveredChart.revenueCents || 0) / 100)}
+                      </strong>
+                    </span>
+                    {chartRegions.map((region) => (
+                      <span key={region}>
+                        <i style={{ background: regionColor(region) }} />
+                        {region}{" "}
+                        <strong>
+                          {money(
+                            (revenueByDateForRegion(region).get(
+                              hoveredChart.date,
+                            ) || 0) / 100,
+                          )}
+                        </strong>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="dashboard-line-labels">
+                  {lineLabelIndexes.map((index) => (
+                    <small
+                      key={daily[index].date}
+                      style={{
+                        left: `${daily.length === 1 ? 50 : 5 + (index / (daily.length - 1)) * 90}%`,
+                      }}
+                    >
+                      {formatChartDate(daily[index].date)}
+                    </small>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="dashboard-no-data">
+              Ainda não há vendas confirmadas neste período.
+            </div>
+          )}
+        </section>
+        <div className="dashboard-report-grid">
+          <section>
+            <span>Categoria líder</span>
+            {topCategories.length ? (
+              <>
+                <b>{topCategories[0].name}</b>
+                <small>
+                  {topCategories[0].quantity} un. ·{" "}
+                  {money(Number(topCategories[0].revenueCents || 0) / 100)} em
+                  receita
+                </small>
+              </>
+            ) : (
+              <small>Aguardando dados de categoria.</small>
+            )}
+          </section>
+          <section>
+            <span>Produtos mais vendidos</span>
+            {topProducts.length ? (
+              <ol>
+                {topProducts.slice(0, 3).map((product) => (
+                  <li key={product.productId}>
+                    <b>{product.name}</b>
+                    <span>{product.quantity} un.</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <small>Aguardando vendas para gerar ranking.</small>
+            )}
+          </section>
+        </div>
+        <section className="dashboard-regional-report">
+          <div>
+            <span className="admin-kicker">MERCADO / REGIÕES</span>
+            <h2>Vendas por região do Brasil</h2>
+            <p>
+              Receita de produtos pagos por região de entrega no período
+              selecionado.
+            </p>
+          </div>
+          <div className="brazil-region-chart">
+            <svg
+              viewBox="0 0 105 102"
+              role="img"
+              aria-label="Mapa de vendas por região do Brasil"
+            >
+              {brazilRegions.map(([name, path]) => {
+                const region = regionalData(name);
+                const value = Number(
+                  region.revenueCents || region.ordersCount || 0,
+                );
+                const opacity = value
+                  ? 0.28 + (value / regionalMax) * 0.72
+                  : 0.12;
+                return (
+                  <path
+                    key={name}
+                    d={path}
+                    className={selectedRegion === name ? "active" : ""}
+                    style={{
+                      fill: regionColor(name),
+                      fillOpacity: opacity,
+                      "--region-color": regionColor(name),
+                    }}
+                    onClick={() =>
+                      setSelectedRegion((current) =>
+                        current === name ? "" : name,
+                      )
+                    }
+                    role="button"
+                    tabIndex="0"
+                    onKeyDown={(event) =>
+                      event.key === "Enter" &&
+                      setSelectedRegion((current) =>
+                        current === name ? "" : name,
+                      )
+                    }
+                  >
+                    <title>{`${name}: ${money(Number(region.revenueCents || 0) / 100)}`}</title>
+                  </path>
+                );
+              })}
+            </svg>
+            <div className="brazil-region-legend">
+              {brazilRegions.map(([name]) => {
+                const region = regionalData(name);
+                return (
+                  <button
+                    key={name}
+                    className={selectedRegion === name ? "active" : ""}
+                    style={{ "--region-color": regionColor(name) }}
+                    onClick={() =>
+                      setSelectedRegion((current) =>
+                        current === name ? "" : name,
+                      )
+                    }
+                  >
+                    <span>{name}</span>
+                    <b>{money(Number(region.revenueCents || 0) / 100)}</b>
+                    <small>{Number(region.ordersCount || 0)} pedidos</small>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      </>
+      {error && (
+        <p className="dashboard-data-note">
+          Indicadores ainda indisponíveis: {error}
+        </p>
+      )}
+    </>
+  );
+}
+
 function AnalyticsPage({ clicks, session, onLogout }) {
   return (
     <main className="clean-admin">
@@ -2610,7 +3299,7 @@ function AnalyticsPage({ clicks, session, onLogout }) {
             Abrir loja <span>↗</span>
           </a>
         </header>
-        <CleanAnalytics clicks={clicks} />
+        <AdminRevenueDashboard />
       </section>
     </main>
   );
@@ -3181,6 +3870,7 @@ function UsersPage({ session, onLogout }) {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [query, setQuery] = useState(""),
+    [accountFilter, setAccountFilter] = useState("administrators"),
     [editing, setEditing] = useState(null),
     [formOpen, setFormOpen] = useState(false),
     [blocking, setBlocking] = useState(null);
@@ -3188,7 +3878,10 @@ function UsersPage({ session, onLogout }) {
     setLoading(true);
     setError("");
     try {
-      const nextUsers = await userService.list();
+      const nextUsers = await userService.list({
+        accountType:
+          accountFilter === "administrators" ? "administrative" : "customer",
+      });
       setUsers(nextUsers);
       if (canManageUsers) setPermissions(await userService.listPermissions());
     } catch (err) {
@@ -3199,7 +3892,7 @@ function UsersPage({ session, onLogout }) {
   };
   useEffect(() => {
     load();
-  }, []);
+  }, [accountFilter]);
   useEffect(() => {
     if (!notice) return;
     const timeout = setTimeout(() => setNotice(""), 4500);
@@ -3242,11 +3935,18 @@ function UsersPage({ session, onLogout }) {
     user.permission?.toLocaleLowerCase("pt-BR") === "admin" &&
     user.active &&
     activeAdminCount === 1;
-  const visible = users.filter((user) =>
+  const searchedUsers = users.filter((user) =>
     `${user.name} ${user.email} ${user.permission} ${user.active ? "ativo" : "bloqueado"}`
       .toLocaleLowerCase("pt-BR")
       .includes(normalizedQuery),
   );
+  const isCustomerAccount = (user) => permissionName(user) === "cliente";
+  const administrators = searchedUsers.filter(
+    (user) => !isCustomerAccount(user),
+  );
+  const customers = searchedUsers.filter(isCustomerAccount);
+  const visible =
+    accountFilter === "administrators" ? administrators : customers;
   return (
     <main className="admin-shell users-admin">
       <AdminSidebar active="users" session={session} onLoggedOut={onLogout} />
@@ -3295,16 +3995,43 @@ function UsersPage({ session, onLogout }) {
           <div className="table-toolbar">
             <div>
               <h2>Contas cadastradas</h2>
-              <span>{visible.length} usuários</span>
+              <span>
+                {visible.length}{" "}
+                {accountFilter === "administrators"
+                  ? "contas administrativas"
+                  : "contas clientes"}
+              </span>
             </div>
-            <label>
-              <SearchIcon />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar usuário..."
-              />
-            </label>
+            <div className="users-toolbar-actions">
+              <div
+                className="users-filter-tabs"
+                role="group"
+                aria-label="Filtrar contas"
+              >
+                <button
+                  type="button"
+                  className={accountFilter === "administrators" ? "active" : ""}
+                  onClick={() => setAccountFilter("administrators")}
+                >
+                  Contas administrativas
+                </button>
+                <button
+                  type="button"
+                  className={accountFilter === "customers" ? "active" : ""}
+                  onClick={() => setAccountFilter("customers")}
+                >
+                  Contas clientes
+                </button>
+              </div>
+              <label>
+                <SearchIcon />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Buscar usuário..."
+                />
+              </label>
+            </div>
           </div>
           {error && (
             <div className="users-error">
@@ -3723,6 +4450,1131 @@ function ShippingOriginSettings({ onClose }) {
   );
 }
 
+const adminOrderStatus = [
+  "Aguardando pagamento",
+  "Pago",
+  "Em produção",
+  "Pronto para envio",
+  "Enviado",
+  "Entregue",
+  "Cancelado",
+];
+const nextOrderStatus = {
+  0: [1, 6],
+  1: [2, 6],
+  2: [3],
+  3: [4],
+  4: [5],
+  5: [],
+  6: [],
+};
+
+function TasksWorkspace({ session, onLogout }) {
+  const now = new Date();
+  const iso = (date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const [selectedDate, setSelectedDate] = useState(iso(now)),
+    [month, setMonth] = useState(
+      new Date(now.getFullYear(), now.getMonth(), 1),
+    ),
+    [taskListScope, setTaskListScope] = useState("day"),
+    [assigneeFilter, setAssigneeFilter] = useState(""),
+    [tasks, setTasks] = useState([]),
+    [orders, setOrders] = useState([]),
+    [administrators, setAdministrators] = useState([]),
+    [loadingAdministrators, setLoadingAdministrators] = useState(false),
+    [taskError, setTaskError] = useState(""),
+    [savingTask, setSavingTask] = useState(false),
+    [formOpen, setFormOpen] = useState(false),
+    [reading, setReading] = useState(null),
+    [editing, setEditing] = useState(null),
+    [orderPreview, setOrderPreview] = useState(null),
+    [productPreview, setProductPreview] = useState(null),
+    [form, setForm] = useState({
+      title: "",
+      type: "general",
+      date: iso(now),
+      assigneeId: "",
+      orderIds: [],
+      orderProgress: {},
+      notes: "",
+    });
+  useEffect(() => {
+    setLoadingAdministrators(true);
+    userService
+      .listTaskAssignees()
+      .then((users) =>
+        setAdministrators(
+          users.filter(
+            (user) =>
+              user.active !== false &&
+              user.isActive !== false,
+          ),
+        ),
+      )
+      .catch(() => setAdministrators([]))
+      .finally(() => setLoadingAdministrators(false));
+  }, []);
+  const first = new Date(month.getFullYear(), month.getMonth(), 1).getDay(),
+    days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const selectedCalendarDate = new Date(`${selectedDate}T12:00:00`);
+  const weekStart = new Date(selectedCalendarDate);
+  weekStart.setDate(selectedCalendarDate.getDate() - selectedCalendarDate.getDay());
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  const calendarTitle = month.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const loadTasks = async () => {
+    setTaskError("");
+    try {
+      const rangeStart = new Date(month.getFullYear(), month.getMonth(), 1);
+      rangeStart.setDate(rangeStart.getDate() - 6);
+      const rangeEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+      rangeEnd.setDate(rangeEnd.getDate() + 6);
+      const from = iso(rangeStart);
+      const to = iso(rangeEnd);
+      const result = await taskService.list(from, to, assigneeFilter);
+      setTasks(Array.isArray(result) ? result : result.items || []);
+    } catch (error) {
+      setTaskError(error.message);
+      setTasks([]);
+    }
+  };
+  useEffect(() => { loadTasks(); }, [month, assigneeFilter]);
+  useEffect(() => {
+    if (!formOpen || ![1, 2].includes(Number(form.type))) {
+      setOrders([]);
+      return;
+    }
+    taskService.eligibleOrders()
+      .then((result) => setOrders(Array.isArray(result) ? result : result.items || []))
+      .catch(() => setOrders([]));
+  }, [formOpen, form.type]);
+  const taskAssignedId = (task) => task.assignedTo?.id || task.assignedToUserId || "";
+  const visibleTasks = tasks.filter((task) => {
+    if (assigneeFilter && String(taskAssignedId(task)) !== assigneeFilter) return false;
+    if (taskListScope === "month") return task.dueDate?.startsWith(`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`);
+    if (taskListScope === "week") {
+      const dueDate = new Date(`${task.dueDate}T12:00:00`);
+      return dueDate >= weekStart && dueDate <= weekEnd;
+    }
+    return task.dueDate === selectedDate;
+  });
+  const agendaTitle = taskListScope === "month"
+    ? `Tarefas de ${calendarTitle}`
+    : taskListScope === "week"
+      ? `Semana de ${weekStart.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}`
+      : selectedCalendarDate.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
+  const openCreate = () => {
+    setEditing(null);
+    setForm({
+      title: "",
+      type: "general",
+      date: selectedDate,
+      assigneeId: "",
+      orderIds: [],
+      orderProgress: {},
+      notes: "",
+    });
+    setFormOpen(true);
+  };
+  const save = async (event) => {
+    event.preventDefault();
+    if (!form.title.trim()) return;
+    setSavingTask(true);
+    setTaskError("");
+    try {
+      const payload = {
+        title: form.title.trim(),
+        type: form.type === "general" ? "general" : Number(form.type),
+        notes: form.notes || null,
+        dueDate: form.date,
+        orderIds: form.orderIds || [],
+        ...(form.assigneeId ? { assignedToUserId: form.assigneeId } : {}),
+      };
+      const item = editing
+        ? await taskService.update(editing.id, payload)
+        : await taskService.create(payload);
+      setSelectedDate(item.dueDate || form.date);
+      setFormOpen(false);
+      setEditing(null);
+      await loadTasks();
+    } catch (error) {
+      setTaskError(error.message);
+    } finally {
+      setSavingTask(false);
+    }
+  };
+  const complete = async (task, showDetail = true) => {
+    try {
+      await taskService.setCompletion(task.id, !task.isCompleted);
+      if (showDetail) {
+        const detail = await taskService.get(task.id);
+        setReading(detail.task || detail);
+      }
+      await loadTasks();
+    } catch (error) {
+      setTaskError(error.message);
+    }
+  };
+  const taskOrderIds = (task) =>
+    task.orderIds || task.orders?.map((order) => String(order.id)) || [];
+  const taskOrders = (task) => task.orders || [];
+  const availableTaskOrders = orders;
+  const taskTypeLabel = (type) =>
+    ({ 0: "Cadastrar produto", 1: "Imprimir pedidos", 2: "Enviar pedidos", 3: "Geral", general: "Geral" })[
+      type === "general" ? "general" : Number(type)
+    ] || "Tarefa";
+  const assigneeName = (assigneeId) =>
+    administrators.find(
+      (user) => String(user.id || user.userId) === String(assigneeId),
+    )?.name || "Sem responsável";
+  const openProductPreview = async (item) => {
+    const itemName = item.name || item.productName || "Produto";
+    setProductPreview({ name: itemName, loading: true });
+    try {
+      const products = await catalogService.list({ admin: true });
+      const product = products.find(
+        (candidate) => String(candidate.id) === String(item.productId),
+      );
+      setProductPreview(
+        product || {
+          name: itemName,
+          description: "Os detalhes deste produto não estão mais disponíveis no catálogo.",
+        },
+      );
+    } catch {
+      setProductPreview({
+        name: itemName,
+        description: "Não foi possível carregar a prévia deste produto agora.",
+      });
+    }
+  };
+  const toggleTaskOrder = async (task, order) => {
+    try {
+      await taskService.setOrderCompletion(
+        task.id,
+        order.id,
+        !order.isCompleted,
+      );
+      const detail = await taskService.get(task.id);
+      setReading(detail.task || detail);
+      await loadTasks();
+    } catch (error) {
+      setTaskError(error.message);
+    }
+  };
+  const openTask = async (task) => {
+    try {
+      setTaskError("");
+      const result = await taskService.get(task.id);
+      setReading(result.task || result);
+    } catch (error) {
+      setTaskError(error.message);
+    }
+  };
+  return (
+    <main className="admin-shell tasks-page">
+      <AdminSidebar active="tasks" session={session} onLoggedOut={onLogout} />
+      <section className="admin-content">
+        <header className="admin-top">
+          <div>
+            <span className="admin-kicker">PAINEL / ORGANIZAÇÃO</span>
+            <h1>Tarefas</h1>
+            <p>Organize operações, produtos e pendências da loja.</p>
+          </div>
+          <button className="admin-primary" onClick={openCreate}>
+            Criar tarefa
+          </button>
+        </header>
+        {taskError && <div className="form-error">{taskError}</div>}
+        <div className="tasks-layout">
+          <section className="tasks-calendar-card">
+            <div className="tasks-calendar-head">
+              <button
+                onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+              >
+                ←
+              </button>
+              <b>{calendarTitle}</b>
+              <button
+                onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+              >
+                →
+              </button>
+            </div>
+            <div className="tasks-weekdays">
+              {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((day) => (
+                <span key={day}>{day}</span>
+              ))}
+            </div>
+            <div className="tasks-days">
+              {Array.from({ length: first }, (_, i) => (
+                <i key={`blank-${i}`} />
+              ))}
+              {Array.from({ length: days }, (_, i) => new Date(month.getFullYear(), month.getMonth(), i + 1)).map((date) => {
+                const value = iso(date),
+                  count = tasks.filter(
+                    (task) => task.dueDate === value && !task.isCompleted,
+                  ).length;
+                return (
+                  <button
+                    key={value}
+                    className={`${value === selectedDate ? "active" : ""} ${value === iso(now) ? "today" : ""}`}
+                    onClick={() => {
+                      setSelectedDate(value);
+                      setTaskListScope("day");
+                    }}
+                  >
+                    <b>{date.getDate()}</b>
+                    {count ? <small aria-label={`${count} tarefas pendentes`}>{count}</small> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+          <section className="tasks-day-card">
+            <span className="admin-kicker">AGENDA / TAREFAS</span>
+            <h2>{agendaTitle}</h2>
+            <div className="tasks-list-scope" role="group" aria-label="Período da lista de tarefas">
+              <button className={taskListScope === "day" ? "active" : ""} onClick={() => setTaskListScope("day")}>Dia</button>
+              <button className={taskListScope === "week" ? "active" : ""} onClick={() => setTaskListScope("week")}>Semana</button>
+              <button className={taskListScope === "month" ? "active" : ""} onClick={() => setTaskListScope("month")}>Mês</button>
+              <select aria-label="Filtrar tarefas por responsável" value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}>
+                <option value="">Todos os responsáveis</option>
+                {administrators.map((user) => <option key={user.id || user.userId} value={user.id || user.userId}>{user.name || user.fullName || user.email}</option>)}
+              </select>
+            </div>
+            <button className="tasks-day-create" onClick={openCreate}>
+              + Nova tarefa neste dia
+            </button>
+            <div className="tasks-list">
+              {visibleTasks.length ? (
+                visibleTasks.map((task) => (
+                  <article
+                    key={task.id}
+                    className={task.isCompleted ? "done" : ""}
+                    onClick={() => openTask(task)}
+                  >
+                    <div className="task-list-main">
+                      <div className="task-list-title">
+                        <div className="task-list-heading">
+                          <div className="task-list-type-row">
+                            <span className="task-type">{taskTypeLabel(task.type)}</span>
+                            <time className="task-list-date" dateTime={task.dueDate}>
+                              {new Date(`${task.dueDate}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}
+                            </time>
+                          </div>
+                          <b>{task.title}</b>
+                        </div>
+                        {task.assignedTo?.name && <span className="task-type task-list-assignee-badge">{task.assignedTo.name}</span>}
+                      </div>
+                      <small className="task-list-meta">
+                        <span>
+                          {(task.orderCount || taskOrderIds(task).length)
+                            ? `${task.orderCount || taskOrderIds(task).length} pedidos vinculados`
+                            : "Sem pedidos vinculados"}
+                        </span>
+                        <em>{task.isCompleted ? "Concluída" : "Pendente"}</em>
+                      </small>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p>Nenhuma tarefa neste período.</p>
+              )}
+            </div>
+          </section>
+        </div>
+      </section>
+      {formOpen && (
+        <div className="admin-modal-backdrop">
+          <form className="product-modal task-form-modal" onSubmit={save}>
+            <div className="modal-head">
+              <div>
+                <span className="admin-kicker">TAREFA / CONFIGURAÇÃO</span>
+                <h2>{editing ? "Editar tarefa" : "Criar tarefa"}</h2>
+              </div>
+              <button type="button" onClick={() => setFormOpen(false)}>
+                ×
+              </button>
+            </div>
+            <div className="task-form-body">
+              <label>
+                Título
+                <input
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  placeholder="Ex.: Imprimir pedidos"
+                />
+              </label>
+              <label>
+                Tipo
+                <select
+                  value={form.type}
+                  onChange={(e) => {
+                    const type = e.target.value === "general" ? "general" : Number(e.target.value);
+                    setForm({ ...form, type, orderIds: [1, 2].includes(type) ? form.orderIds : [] });
+                  }}
+                >
+                  <option value="general">Geral</option>
+                  <option value={0}>Cadastrar produto</option>
+                  <option value={1}>Imprimir pedidos</option>
+                  <option value={2}>Enviar pedidos</option>
+                </select>
+              </label>
+              <label>
+                Data
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                />
+              </label>
+              <label>
+                Responsável
+                <select
+                  value={form.assigneeId || ""}
+                  onChange={(e) => setForm({ ...form, assigneeId: e.target.value })}
+                  disabled={loadingAdministrators}
+                >
+                  <option value="">{loadingAdministrators ? "Carregando usuários..." : "Atribuir ao criador"}</option>
+                  {administrators.map((user) => <option key={user.id || user.userId} value={user.id || user.userId}>{user.name || user.fullName || user.email} · {user.email}</option>)}
+                  {!loadingAdministrators && !administrators.length && <option disabled>Nenhum usuário ativo disponível</option>}
+                </select>
+              </label>
+              {[1, 2].includes(Number(form.type)) && <div className="task-order-picker field-wide">
+                <b>Vincular pedidos (opcional)</b>
+                {availableTaskOrders.map((order) => {
+                  const id = String(order.id || order.orderId);
+                  return <label key={id}><input type="checkbox" checked={(form.orderIds || []).includes(id)} onChange={() => setForm((current) => ({ ...current, orderIds: current.orderIds.includes(id) ? current.orderIds.filter((value) => value !== id) : [...current.orderIds, id] }))} />{order.orderNumber} · {order.customerEmail || "Cliente"}<button className="admin-primary task-order-preview" type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setOrderPreview(order); }}>Ver resumo</button></label>;
+                })}
+                {!availableTaskOrders.length && <small>Nenhum pedido confirmado aguardando envio.</small>}
+              </div>}
+              <label className="field-wide">
+                Observações
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                />
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="admin-secondary"
+                onClick={() => setFormOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button className="admin-primary" disabled={savingTask}>{savingTask ? "Salvando..." : "Salvar tarefa"}</button>
+            </div>
+          </form>
+        </div>
+      )}
+      {reading && (
+        <div className="admin-modal-backdrop">
+          <div className="product-modal task-read-modal">
+            <div className="modal-head">
+              <div>
+                <span className="admin-kicker">TAREFA / DETALHES</span>
+                <h2>{reading.title}</h2>
+              </div>
+              <div>
+                <button
+                  className="task-edit"
+                  onClick={() => {
+                    setEditing(reading);
+                    setForm({ title: reading.title, type: reading.type === "general" ? "general" : Number(reading.type), date: reading.dueDate, assigneeId: reading.assignedTo?.id || "", orderIds: taskOrderIds(reading), notes: reading.notes || "" });
+                    setReading(null);
+                    setFormOpen(true);
+                  }}
+                >
+                  ✎
+                </button>
+                <button onClick={() => setReading(null)}>×</button>
+              </div>
+            </div>
+            <div className="task-read-body">
+              <span>{taskTypeLabel(reading.type)}</span>
+              <small>Responsável: {reading.assignedTo?.name || assigneeName(reading.assigneeId)}</small>
+              <p className="task-notes">{reading.notes || "Sem observações."}</p>
+              {taskOrders(reading).length > 0 && <div className="task-linked-orders">{taskOrders(reading).map((order) => <label key={order.id}><input type="checkbox" checked={Boolean(order.isCompleted)} onChange={() => toggleTaskOrder(reading, order)} /> <button type="button" onClick={() => setOrderPreview(order)}>{order.orderNumber}</button><small>{order.isCompleted ? "Concluído" : "Pendente"}</small></label>)}</div>}
+              <button
+                className="admin-primary"
+                onClick={() => complete(reading)}
+              >
+                {reading.isCompleted ? "Reabrir tarefa" : "Concluir tarefa"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {orderPreview && <div className="admin-modal-backdrop"><div className="product-modal task-read-modal order-preview-modal"><div className="modal-head"><div><span className="admin-kicker">PEDIDO / RESUMO</span><h2>{orderPreview.orderNumber}</h2></div><button onClick={() => setOrderPreview(null)}>×</button></div><div className="task-read-body"><span>{adminOrderStatus[Number(orderPreview.status)]}</span><div className="order-admin-summary"><span>Produtos</span><b>{money(Number(orderPreview.subtotalCents || 0) / 100)}</b><span>Entrega</span><b>{money(Number(orderPreview.shippingCents || 0) / 100)}</b><strong>Total</strong><strong>{money(Number(orderPreview.totalCents || 0) / 100)}</strong></div><p>{orderPreview.deliveryAddress || "Endereço não informado"}</p>{orderPreview.items?.map((item) => <div className="task-order-product" key={item.productId || item.name}><b>{item.quantity}× {item.name || item.productName}</b><button className="admin-secondary" type="button" onClick={() => openProductPreview(item)}>Ver produto</button></div>)}</div></div></div>}
+      {productPreview && <div className="admin-modal-backdrop"><div className="product-modal task-read-modal task-product-preview"><div className="modal-head"><div><span className="admin-kicker">PRODUTO / PRÉVIA</span><h2>{productPreview.name}</h2></div><button onClick={() => setProductPreview(null)}>×</button></div><div className="task-product-preview-body">{productPreview.loading ? <p>Carregando produto...</p> : <><ProductVisual product={productPreview} small /><div><b>{productPreview.name}</b><p>{productPreview.description || "Sem descrição disponível."}</p></div></>}</div></div></div>}
+    </main>
+  );
+}
+
+function TasksPage({ session, onLogout }) {
+  const today = new Date();
+  const dateId = (date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const [selectedDate, setSelectedDate] = useState(dateId(today));
+  const [month, setMonth] = useState(
+    new Date(today.getFullYear(), today.getMonth(), 1),
+  );
+  const [title, setTitle] = useState("");
+  const [tasks, setTasks] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("triso-admin-tasks") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  useEffect(
+    () => localStorage.setItem("triso-admin-tasks", JSON.stringify(tasks)),
+    [tasks],
+  );
+  const firstWeekday = new Date(
+    month.getFullYear(),
+    month.getMonth(),
+    1,
+  ).getDay();
+  const totalDays = new Date(
+    month.getFullYear(),
+    month.getMonth() + 1,
+    0,
+  ).getDate();
+  const selectedTasks = tasks.filter((task) => task.date === selectedDate);
+  const addTask = (event) => {
+    event.preventDefault();
+    if (!title.trim()) return;
+    setTasks((items) => [
+      ...items,
+      {
+        id: `${Date.now()}`,
+        title: title.trim(),
+        date: selectedDate,
+        done: false,
+      },
+    ]);
+    setTitle("");
+  };
+  const monthLabel = month.toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+  return (
+    <main className="admin-shell tasks-page">
+      <AdminSidebar active="tasks" session={session} onLoggedOut={onLogout} />
+      <section className="admin-content">
+        <header className="admin-top">
+          <div>
+            <span className="admin-kicker">PAINEL / ORGANIZAÇÃO</span>
+            <h1>Tarefas</h1>
+            <p>
+              Planeje cadastro de produtos, expedições e as prioridades da
+              operação.
+            </p>
+          </div>
+        </header>
+        <div className="tasks-layout">
+          <section className="tasks-calendar-card">
+            <div className="tasks-calendar-head">
+              <button
+                onClick={() =>
+                  setMonth(
+                    new Date(month.getFullYear(), month.getMonth() - 1, 1),
+                  )
+                }
+              >
+                ←
+              </button>
+              <b>{monthLabel}</b>
+              <button
+                onClick={() =>
+                  setMonth(
+                    new Date(month.getFullYear(), month.getMonth() + 1, 1),
+                  )
+                }
+              >
+                →
+              </button>
+            </div>
+            <div className="tasks-weekdays">
+              {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((day) => (
+                <span key={day}>{day}</span>
+              ))}
+            </div>
+            <div className="tasks-days">
+              {Array.from({ length: firstWeekday }, (_, index) => (
+                <i key={`blank-${index}`} />
+              ))}
+              {Array.from({ length: totalDays }, (_, index) => {
+                const date = new Date(
+                  month.getFullYear(),
+                  month.getMonth(),
+                  index + 1,
+                );
+                const id = dateId(date);
+                const count = tasks.filter(
+                  (task) => task.date === id && !task.done,
+                ).length;
+                return (
+                  <button
+                    key={id}
+                    className={`${id === selectedDate ? "active" : ""} ${id === dateId(today) ? "today" : ""}`}
+                    onClick={() => setSelectedDate(id)}
+                  >
+                    <b>{index + 1}</b>
+                    {count > 0 && <small>{count}</small>}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+          <section className="tasks-day-card">
+            <span className="admin-kicker">TAREFAS DO DIA</span>
+            <h2>
+              {new Date(`${selectedDate}T12:00:00`).toLocaleDateString(
+                "pt-BR",
+                { weekday: "long", day: "2-digit", month: "long" },
+              )}
+            </h2>
+            <form onSubmit={addTask}>
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Ex.: Cadastrar novo produto"
+              />
+              <button className="admin-primary">Adicionar</button>
+            </form>
+            <div className="tasks-list">
+              {selectedTasks.length ? (
+                selectedTasks.map((task) => (
+                  <article key={task.id} className={task.done ? "done" : ""}>
+                    <button
+                      onClick={() =>
+                        setTasks((items) =>
+                          items.map((item) =>
+                            item.id === task.id
+                              ? { ...item, done: !item.done }
+                              : item,
+                          ),
+                        )
+                      }
+                    >
+                      {task.done ? "✓" : ""}
+                    </button>
+                    <b>{task.title}</b>
+                    <button
+                      className="tasks-remove"
+                      onClick={() =>
+                        setTasks((items) =>
+                          items.filter((item) => item.id !== task.id),
+                        )
+                      }
+                    >
+                      ×
+                    </button>
+                  </article>
+                ))
+              ) : (
+                <p>
+                  Nenhuma tarefa para este dia. Adicione a primeira prioridade.
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function AdminOrdersPage({ session, onLogout, initialFilter = "" }) {
+  const [orders, setOrders] = useState([]),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [filter, setFilter] = useState(initialFilter),
+    [selected, setSelected] = useState(null),
+    [trackingCode, setTrackingCode] = useState(""),
+    [saving, setSaving] = useState(false),
+    [editingOrder, setEditingOrder] = useState(false),
+    [manualStatus, setManualStatus] = useState("");
+  const canOverrideOrderStatus = permissionName(session) === "admin";
+  const canManageOrderFlow = ["admin", "gestor"].includes(
+    permissionName(session),
+  );
+  const shippingCarrier = (order) => order?.shipping?.carrier || order?.carrier;
+  const shippingService = (order) => order?.shipping?.service || order?.service;
+  const shippingPrice = (order) =>
+    Number(order?.shipping?.priceCents || order?.shippingCents || 0);
+  const canManageTracking = (order) =>
+    canManageOrderFlow &&
+    shippingCarrier(order) === "Correios" &&
+    [3, 4].includes(Number(order?.status));
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await orderService.adminList({
+        status: filter,
+        sort: "shippingDeadline",
+      });
+      const items = result.items || result.data || result;
+      setOrders(items);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    load();
+  }, [filter]);
+  const open = (order) => {
+    setSelected(order);
+    setTrackingCode(order.shipping?.trackingCode || order.trackingCode || "");
+    setManualStatus(String(order.status));
+    setEditingOrder(false);
+  };
+  const changeStatus = async (status) => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      await orderService.adminSetStatus(selected.id, status);
+      const updated = await orderService.adminGet(selected.id);
+      setSelected(updated);
+      setManualStatus(String(updated.status));
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const saveTracking = async () => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      const updated = await orderService.adminSetTracking(
+        selected.id,
+        trackingCode,
+      );
+      setSelected(updated);
+      setTrackingCode(
+        updated.shipping?.trackingCode || updated.trackingCode || trackingCode,
+      );
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const deadlineLabel = (order) =>
+    order.shippingDeadlineStatus === "overdue"
+      ? "Enviar imediatamente"
+      : order.shippingDeadlineStatus === "dueToday"
+        ? "Enviar hoje"
+        : order.shippingDeadlineAt
+          ? `Enviar até ${new Date(order.shippingDeadlineAt).toLocaleDateString("pt-BR")}`
+          : "Aguardando etapa de envio";
+  const nextStepLabel = (order) =>
+    [
+      "Aguardar confirmação do pagamento",
+      "Iniciar produção",
+      "Preparar para envio",
+      "Informar rastreio e enviar",
+      "Acompanhar entrega",
+      "Pedido concluído",
+      "Sem ações pendentes",
+    ][Number(order.status)] || "Ver pedido";
+  return (
+    <main className="admin-shell">
+      <AdminSidebar active="orders" session={session} onLoggedOut={onLogout} />
+      <section className="admin-content">
+        <header className="admin-top">
+          <div>
+            <span className="admin-kicker">PAINEL / OPERAÇÃO</span>
+            <h1>Pedidos</h1>
+            <p>
+              Fila de produção e expedição priorizada pelo prazo de postagem.
+            </p>
+          </div>
+        </header>
+        <div className="order-admin-filters">
+          <button
+            className={filter === "" ? "active" : ""}
+            onClick={() => setFilter("")}
+          >
+            Todos
+          </button>
+          {[
+            [0, "Aguardando pagamento"],
+            [1, "Pagos"],
+            [2, "Produção"],
+            [3, "Prontos"],
+            [4, "Enviados"],
+            [5, "Entregues"],
+            [6, "Cancelados"],
+          ].map(([status, label]) => (
+            <button
+              key={status}
+              className={String(filter) === String(status) ? "active" : ""}
+              onClick={() => setFilter(status)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {error && (
+          <div className="users-error">
+            <span>{error}</span>
+            <button onClick={load}>Tentar novamente</button>
+          </div>
+        )}
+        <div className="admin-orders-layout has-detail">
+          <section className="admin-table-card">
+            <div className="table-toolbar">
+              <div>
+                <h2>Fila de pedidos</h2>
+                <span>
+                  {orders.length} pedidos · clique para ver os detalhes
+                </span>
+              </div>
+            </div>
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Pedido</th>
+                    <th className="order-user-email">Usuário</th>
+                    <th>Próximo passo</th>
+                    <th>Total</th>
+                    <th className="order-status-cell">Status</th>
+                    {canOverrideOrderStatus && <th>Editar</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map((order) => (
+                    <tr
+                      key={order.id || order.orderId}
+                      className={
+                        (selected?.id || selected?.orderId) ===
+                        (order.id || order.orderId)
+                          ? "selected"
+                          : ""
+                      }
+                      onClick={() => open(order)}
+                    >
+                      <td>
+                        <b>{order.orderNumber}</b>
+                        <small>
+                          {new Date(order.createdAt).toLocaleDateString(
+                            "pt-BR",
+                          )}
+                        </small>
+                      </td>
+                      <td className="order-user-email">
+                        <b>
+                          {order.user?.email ||
+                            order.customer?.email ||
+                            order.customerEmail ||
+                            "E-mail não informado"}
+                        </b>
+                      </td>
+                      <td className="order-next-step">
+                        <b>{nextStepLabel(order)}</b>
+                      </td>
+                      <td>
+                        <b>{money((order.totalCents || 0) / 100)}</b>
+                      </td>
+                      <td className="order-status-cell">
+                        <span
+                          className={`status-pill order-status-${Number(order.status)}`}
+                        >
+                          {adminOrderStatus[Number(order.status)] || "—"}
+                        </span>
+                      </td>
+                      {canOverrideOrderStatus && (
+                        <td className="order-table-edit">
+                          <button
+                            className="admin-secondary"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              open(order);
+                              setEditingOrder(true);
+                            }}
+                          >
+                            Editar pedido
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {loading && (
+                <div className="admin-empty">Carregando pedidos...</div>
+              )}
+              {!loading && !orders.length && (
+                <div className="admin-empty">Nenhum pedido nesta fila.</div>
+              )}
+            </div>
+          </section>
+          <aside className="order-admin-detail">
+            {selected ? (
+              <>
+                <button
+                  className="order-detail-close"
+                  onClick={() => {
+                    setSelected(null);
+                    setEditingOrder(false);
+                  }}
+                  aria-label="Limpar seleção"
+                >
+                  ×
+                </button>
+                <span className="admin-kicker">
+                  PEDIDO {selected.orderNumber}
+                </span>
+                <h2>{adminOrderStatus[Number(selected.status)]}</h2>
+                <div className="order-admin-summary">
+                  <span>Produtos</span>
+                  <b>{money((selected.subtotalCents || 0) / 100)}</b>
+                  <span>
+                    Entrega
+                    {shippingCarrier(selected) && (
+                      <small>
+                        {shippingCarrier(selected)} ·{" "}
+                        {shippingService(selected)}
+                      </small>
+                    )}
+                  </span>
+                  <b>{money(shippingPrice(selected) / 100)}</b>
+                  <strong>Total</strong>
+                  <strong>{money((selected.totalCents || 0) / 100)}</strong>
+                </div>
+                <div className="order-delivery-details">
+                  <div className="order-delivery-head">
+                    <span>Entrega</span>
+                    <b>
+                      {shippingCarrier(selected)
+                        ? `${shippingCarrier(selected)} · ${shippingService(selected)}`
+                        : "Entrega não informada"}
+                    </b>
+                  </div>
+                  <b className="order-delivery-address">
+                    {selected.deliveryAddress ||
+                      (selected.address
+                        ? `${selected.address.street || ""}, ${selected.address.number || ""} — ${selected.address.city || ""}/${selected.address.state || ""}`
+                        : "Endereço não informado")}
+                  </b>
+                  {selected.deliveryDays && (
+                    <small>
+                      Previsão de até {selected.deliveryDays} dias úteis
+                    </small>
+                  )}
+                  {trackingCode && <small>Rastreio: {trackingCode}</small>}
+                </div>
+                {canManageTracking(selected) && (
+                  <label>
+                    Rastreio dos Correios
+                    <input
+                      value={trackingCode}
+                      onChange={(event) =>
+                        setTrackingCode(event.target.value.toUpperCase())
+                      }
+                      placeholder="AA123456789BR"
+                    />
+                    <button
+                      className="admin-secondary"
+                      disabled={saving || !trackingCode}
+                      onClick={saveTracking}
+                    >
+                      Salvar rastreio
+                    </button>
+                  </label>
+                )}
+                {canManageOrderFlow && (
+                  <div className="order-status-actions">
+                    <b>Próximo passo</b>
+                    {(nextOrderStatus[Number(selected.status)] || []).map(
+                      (status) => (
+                        <button
+                          key={status}
+                          className="admin-primary"
+                          disabled={saving}
+                          onClick={() => changeStatus(status)}
+                        >
+                          Alterar para {adminOrderStatus[status]}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="order-detail-empty">
+                <span className="admin-kicker">RESUMO DO PEDIDO</span>
+                <h2>Selecione um pedido</h2>
+                <p>Os dados do pedido aparecerão aqui.</p>
+              </div>
+            )}
+          </aside>
+        </div>
+        {canOverrideOrderStatus && editingOrder && selected && (
+          <div
+            className="admin-modal-backdrop"
+            onMouseDown={(event) =>
+              event.target === event.currentTarget && setEditingOrder(false)
+            }
+          >
+            <div
+              className="product-modal order-edit-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Editar pedido"
+            >
+              <div className="modal-head">
+                <div>
+                  <span className="admin-kicker">PEDIDO / EDIÇÃO</span>
+                  <h2>{selected.orderNumber}</h2>
+                </div>
+                <button
+                  onClick={() => setEditingOrder(false)}
+                  aria-label="Fechar"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="order-edit-body">
+                <div>
+                  <span>Status atual</span>
+                  <b>{adminOrderStatus[Number(selected.status)]}</b>
+                </div>
+                <div className="order-edit-data">
+                  <section>
+                    <span>Cliente</span>
+                    <b>
+                      {selected.user?.email ||
+                        selected.customer?.email ||
+                        selected.customerEmail ||
+                        "E-mail não informado"}
+                    </b>
+                  </section>
+                  <section>
+                    <span>Itens</span>
+                    {selected.items?.length ? (
+                      <ul>
+                        {selected.items.map((item, index) => (
+                          <li key={item.id || item.productId || index}>
+                            <b>{item.productName || item.name || "Produto"}</b>
+                            <small>
+                              {item.quantity || 1} un. ·{" "}
+                              {money(
+                                Number(
+                                  item.totalCents || item.unitPriceCents || 0,
+                                ) / 100,
+                              )}
+                            </small>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <small>Itens não disponíveis nesta listagem.</small>
+                    )}
+                  </section>
+                  <section>
+                    <span>Entrega</span>
+                    <b>
+                      {shippingCarrier(selected)
+                        ? `${shippingCarrier(selected)} · ${shippingService(selected)}`
+                        : "Não informada"}
+                    </b>
+                    <small>
+                      {money(shippingPrice(selected) / 100)}
+                      {selected.deliveryDays
+                        ? ` · até ${selected.deliveryDays} dias úteis`
+                        : ""}
+                    </small>
+                  </section>
+                  <section>
+                    <span>Endereço</span>
+                    {selected.deliveryAddress || selected.address ? (
+                      <b>
+                        {selected.deliveryAddress ||
+                          `${selected.address.street || ""}, ${selected.address.number || ""} — ${selected.address.city || ""}/${selected.address.state || ""}`}
+                      </b>
+                    ) : (
+                      <small>Endereço não disponível nesta listagem.</small>
+                    )}
+                  </section>
+                  <section className="order-edit-total">
+                    <span>Total do pedido</span>
+                    <b>{money(Number(selected.totalCents || 0) / 100)}</b>
+                  </section>
+                </div>
+                {canManageTracking(selected) && (
+                  <label>
+                    Código de rastreio dos Correios
+                    <input
+                      value={trackingCode}
+                      onChange={(event) =>
+                        setTrackingCode(event.target.value.toUpperCase())
+                      }
+                      placeholder="AA123456789BR"
+                    />
+                    <button
+                      className="admin-secondary"
+                      disabled={saving || !trackingCode}
+                      onClick={saveTracking}
+                    >
+                      Salvar rastreio
+                    </button>
+                  </label>
+                )}
+                <label className="order-status-override">
+                  Alterar status do pedido
+                  <select
+                    value={manualStatus}
+                    onChange={(event) => setManualStatus(event.target.value)}
+                  >
+                    {adminOrderStatus.map((label, status) => (
+                      <option key={status} value={status}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="admin-primary"
+                    disabled={
+                      saving || Number(manualStatus) === Number(selected.status)
+                    }
+                    onClick={() => changeStatus(Number(manualStatus))}
+                  >
+                    Atualizar status
+                  </button>
+                </label>
+              </div>
+              <div className="modal-actions">
+                <button
+                  className="admin-secondary"
+                  onClick={() => setEditingOrder(false)}
+                >
+                  Concluir
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
+
 function AdminDashboard({
   products,
   saveProduct,
@@ -3743,7 +5595,7 @@ function AdminDashboard({
     [confirmDelete, setConfirmDelete] = useState(null),
     [announcementProduct, setAnnouncementProduct] = useState(null);
   const visible = products.filter((p) =>
-    `${p.name} ${p.marketplace}`
+    `${p.name} ${p.description}`
       .toLocaleLowerCase("pt-BR")
       .includes(query.toLocaleLowerCase("pt-BR")),
   );
@@ -3866,11 +5718,6 @@ function AdminDashboard({
             <b>{products.filter((p) => p.active).length}</b>
             <small>visíveis na loja</small>
           </div>
-          <div>
-            <span>Marketplaces</span>
-            <b>{new Set(products.map((p) => p.marketplace)).size}</b>
-            <small>canais conectados</small>
-          </div>
         </div>
         <div className="admin-table-card">
           <div className="table-toolbar">
@@ -3894,7 +5741,6 @@ function AdminDashboard({
                   <th>Produto</th>
                   <th>Categoria</th>
                   <th>Preço</th>
-                  <th>Canal de venda</th>
                   <th>Status</th>
                   <th>{canManageProducts ? "Ações" : "Anúncio"}</th>
                 </tr>
@@ -3914,11 +5760,6 @@ function AdminDashboard({
                     <td>{categories[product.category]}</td>
                     <td>
                       <b>{money(product.price)}</b>
-                    </td>
-                    <td>
-                      <span className="market-chip-admin">
-                        {product.marketplace}
-                      </span>
                     </td>
                     <td>
                       {canManageProducts ? (
@@ -4033,7 +5874,7 @@ export default function App() {
   const location = useSpaLocation();
   const routeParams = new URLSearchParams(location.search);
   const adminPathMatch = location.pathname.match(
-    /^\/admin(?:\/(produtos|usuarios))?\/?$/,
+    /^\/admin(?:\/(produtos|usuarios|pedidos|tarefas))?\/?$/,
   );
   const isAdminRoute = routeParams.has("admin") || Boolean(adminPathMatch);
   const customerRoute = isAdminRoute ? "" : location.pathname;
@@ -4097,10 +5938,25 @@ export default function App() {
       ? "products"
       : adminPathMatch?.[1] === "usuarios"
         ? "users"
-        : routeParams.get("view");
+        : adminPathMatch?.[1] === "pedidos"
+          ? "orders"
+          : adminPathMatch?.[1] === "tarefas"
+            ? "tasks"
+            : routeParams.get("view");
   const access = permissionAccess(session);
   if (adminView === "users" && access.viewUsers)
     return <UsersPage session={session} onLogout={auth.logout} />;
+  if (adminView === "orders")
+    return (
+      <AdminOrdersPage
+        key={`orders-${routeParams.get("filter") || ""}`}
+        session={session}
+        onLogout={auth.logout}
+        initialFilter={routeParams.get("filter") || ""}
+      />
+    );
+  if (adminView === "tasks")
+    return <TasksWorkspace session={session} onLogout={auth.logout} />;
   if (adminView === "products")
     return (
       <AdminDashboard

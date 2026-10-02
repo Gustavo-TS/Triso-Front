@@ -103,6 +103,7 @@ function Line({ line, editable }) {
 
 export function CartPage() {
   const { lines, subtotalCents, clear } = useCart();
+  const [clearConfirmation, setClearConfirmation] = useState(false);
   return (
     <Layout>
       <section className="commerce-card">
@@ -112,10 +113,7 @@ export function CartPage() {
           {lines.length > 0 && (
             <button
               className="commerce-secondary cart-clear"
-              onClick={() => {
-                if (window.confirm("Remover todos os itens do carrinho?"))
-                  clear();
-              }}
+              onClick={() => setClearConfirmation(true)}
             >
               Limpar carrinho
             </button>
@@ -152,6 +150,7 @@ export function CartPage() {
           </div>
         )}
       </section>
+      {clearConfirmation && <div className="account-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setClearConfirmation(false)}><section className="cart-clear-modal" role="dialog" aria-modal="true" aria-labelledby="clear-cart-title"><span>ATENÇÃO</span><h2 id="clear-cart-title">Limpar carrinho?</h2><p>Todos os itens adicionados serão removidos. Esta ação pode ser desfeita adicionando-os novamente.</p><div><button className="commerce-secondary" type="button" onClick={() => setClearConfirmation(false)}>Cancelar</button><button className="commerce-danger" type="button" onClick={() => { clear(); setClearConfirmation(false); }}>Limpar carrinho</button></div></section></div>}
     </Layout>
   );
 }
@@ -1418,13 +1417,9 @@ export function AccountPage({ detailId }) {
                   ))}
                 </div>
               ) : (
-                orders && <p>Nenhum pedido realizado ainda.</p>
+                orders && <section className="account-orders-empty"><span>SEUS PEDIDOS</span><h3>Ainda não há pedidos por aqui</h3><p>Quando você finalizar uma compra, acompanharemos por aqui cada etapa — do pagamento à entrega.</p><a className="commerce-primary" href="/#loja">Explorar produtos <i>→</i></a></section>
               )}
-              <div className="account-navigation">
-                <a className="commerce-secondary" href="/">
-                  ← Voltar para a loja
-                </a>
-              </div>
+              {orders?.length > 0 && <div className="account-navigation"><a className="commerce-secondary" href="/">← Voltar para a loja</a></div>}
             </>
           )}
         </section>
