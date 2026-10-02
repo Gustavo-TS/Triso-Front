@@ -3,7 +3,6 @@ import { campaignService } from "../../services/campaignService.js";
 
 const TEMPLATE_URL = import.meta.env.VITE_DRALFREDO_TEMPLATE_URL || "/DrAlfredo/drAlfredo4063.png";
 const COUNTER_KEY = "dralfredo-download-count";
-const DOWNLOADED_KEY = "dralfredo-downloaded";
 
 const readCounter = () => Number(window.localStorage.getItem(COUNTER_KEY) || 0);
 
@@ -49,17 +48,28 @@ export function DrAlfredoPage() {
   const [creating, setCreating] = useState(false);
   const [thanksOpen, setThanksOpen] = useState(false);
   const [error, setError] = useState("");
+  const [counterError, setCounterError] = useState("");
   const [zoom, setZoom] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [previewUrl, setPreviewUrl] = useState("");
+  const [finalSeloUrl, setFinalSeloUrl] = useState("");
+  const [finalSeloBlob, setFinalSeloBlob] = useState(null);
   const previewInputRef = useRef(null);
 
   useEffect(() => {
     let active = true;
     campaignService
       .getDownloads()
-      .then((data) => active && setDownloads(Number(data?.downloadsCount || 0)))
-      .catch(() => active && setDownloads(readCounter()));
+      .then((data) => {
+        if (!active) return;
+        setDownloads(Number(data?.downloadsCount || 0));
+        setCounterError("");
+      })
+      .catch((err) => {
+        if (!active) return;
+        setDownloads(readCounter());
+        setCounterError(`Não foi possível consultar os apoios agora (HTTP ${err?.status || "rede"}).`);
+      });
     return () => { active = false; };
   }, []);
 
@@ -97,33 +107,63 @@ export function DrAlfredoPage() {
     reader.readAsDataURL(file);
   };
 
+  const registerDownload = async () => {
+    try {
+      const result = await campaignService.recordDownload();
+      setDownloads(Number(result?.downloadsCount || downloads));
+    } catch {
+      const nextDownloads = readCounter() + 1;
+      window.localStorage.setItem(COUNTER_KEY, String(nextDownloads));
+      setDownloads(nextDownloads);
+    }
+  };
+
+  const saveSelo = async () => {
+    if (!finalSeloBlob) return;
+    const url = URL.createObjectURL(finalSeloBlob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "eu-apoio-dr-ze-alfredo-4063.png";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const shareSelo = async () => {
+    if (!finalSeloBlob) return;
+    const file = new File([finalSeloBlob], "eu-apoio-dr-ze-alfredo-4063.png", { type: "image/png" });
+    try {
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ title: "Dr. Zé Alfredo 4063", text: "Meu selo de apoio ao Dr. Zé Alfredo 4063.", files: [file] });
+      } else if (navigator.share) {
+        await navigator.share({ title: "Dr. Zé Alfredo 4063", url: window.location.href });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(window.location.href);
+        setError("Link copiado para compartilhar.");
+      }
+    } catch (err) {
+      if (err?.name !== "AbortError") setError("Não foi possível abrir o compartilhamento.");
+    }
+  };
+
   const createAndDownload = async () => {
     if (!photo || creating) return;
     setCreating(true);
+    setThanksOpen(false);
     setError("");
+    void registerDownload();
     try {
       const [person, template] = await Promise.all([
         loadImage(photo),
         loadImage(TEMPLATE_URL).catch(() => null),
       ]);
       const canvas = composeSelo(person, template, zoom, position);
-
-      const link = document.createElement("a");
-      link.download = "eu-apoio-dr-alfredo.png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-
-      if (!window.localStorage.getItem(DOWNLOADED_KEY)) {
-        try {
-          const result = await campaignService.recordDownload();
-          setDownloads(Number(result?.downloadsCount || downloads));
-        } catch {
-          const nextDownloads = readCounter() + 1;
-          window.localStorage.setItem(COUNTER_KEY, String(nextDownloads));
-          setDownloads(nextDownloads);
-        }
-        window.localStorage.setItem(DOWNLOADED_KEY, "true");
-      }
+      const blobPromise = new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      const loadingDelay = new Promise((resolve) => window.setTimeout(resolve, 3000));
+      setFinalSeloUrl(canvas.toDataURL("image/png"));
+      const [blob] = await Promise.all([blobPromise, loadingDelay]);
+      setFinalSeloBlob(blob);
       setThanksOpen(true);
     } catch {
       setError("Não foi possível montar sua imagem agora. Tente novamente.");
@@ -155,6 +195,7 @@ export function DrAlfredoPage() {
             <b>{String(downloads).padStart(4, "0")}</b>
             <span className="dralfredo-counter-copy">{supportText}</span>
           </div>
+          {counterError && <small className="dralfredo-counter-error">{counterError}</small>}
           <a className="dralfredo-instagram" href="https://www.instagram.com/dr.zealfredo" target="_blank" rel="noreferrer">@dr.zealfredo <span>↗</span></a>
         </div>
 
@@ -188,7 +229,7 @@ export function DrAlfredoPage() {
           </div>}
           {error && <p className="dralfredo-error">{error}</p>}
           <button className="dralfredo-download" type="button" disabled={!photo || creating} onClick={createAndDownload}>
-            {creating ? "Montando sua imagem..." : "Baixar meu selo de apoio"}
+            {creating ? "Montando sua imagem..." : "Criar meu selo de apoio"}
           </button>
         </div>
       </section>
@@ -198,14 +239,18 @@ export function DrAlfredoPage() {
         <a href="/">Conheça nosso site <span>→</span></a>
       </footer>
 
+      {creating && <div className="dralfredo-building" role="status"><span /><b>Montando seu selo...</b><small>Estamos preparando sua imagem.</small></div>}
+
       {thanksOpen && (
         <div className="dralfredo-thanks-backdrop" role="presentation">
           <section className="dralfredo-thanks" role="dialog" aria-modal="true" aria-labelledby="dralfredo-thanks-title">
             <button type="button" onClick={() => setThanksOpen(false)} aria-label="Fechar">×</button>
             <span>APOIO REGISTRADO · 4063</span>
             <h2 id="dralfredo-thanks-title">Obrigado por estar com o Dr. Zé Alfredo.</h2>
-            <p>Seu selo já foi baixado. Compartilhe nas redes e ajude essa mensagem a chegar ainda mais longe.</p>
+            <p>Seu selo está pronto. Salve ou compartilhe nas redes e ajude essa mensagem a chegar ainda mais longe.</p>
             <div className="dralfredo-thanks-number"><span>DEPUTADO<br />FEDERAL</span><b>4063</b></div>
+            {finalSeloUrl && <img className="dralfredo-thanks-preview" src={finalSeloUrl} alt="Seu selo de apoio pronto" />}
+            <div className="dralfredo-thanks-actions"><button type="button" onClick={saveSelo}>Salvar imagem</button><button type="button" onClick={shareSelo}>Compartilhar</button></div>
             <a className="dralfredo-thanks-instagram" href="https://www.instagram.com/dr.zealfredo" target="_blank" rel="noreferrer">Acompanhar @dr.zealfredo</a>
             <div className="dralfredo-thanks-credit">
               <span>Esta experiência foi criada pela Triso Studio.</span>
