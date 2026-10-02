@@ -52,6 +52,9 @@ export function DrAlfredoPage() {
   const [zoom, setZoom] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [previewUrl, setPreviewUrl] = useState("");
+  const [finalSeloUrl, setFinalSeloUrl] = useState("");
+  const [finalSeloBlob, setFinalSeloBlob] = useState(null);
+  const [sharing, setSharing] = useState(false);
   const previewInputRef = useRef(null);
 
   useEffect(() => {
@@ -108,10 +111,10 @@ export function DrAlfredoPage() {
       ]);
       const canvas = composeSelo(person, template, zoom, position);
 
-      const link = document.createElement("a");
-      link.download = "eu-apoio-dr-alfredo.png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("Não foi possível gerar o selo.");
+      setFinalSeloUrl(canvas.toDataURL("image/png"));
+      setFinalSeloBlob(blob);
 
       if (!window.localStorage.getItem(DOWNLOADED_KEY)) {
         try {
@@ -130,6 +133,41 @@ export function DrAlfredoPage() {
     } finally {
       setCreating(false);
     }
+  };
+
+  const saveSelo = () => {
+    if (!finalSeloBlob) return;
+    const url = URL.createObjectURL(finalSeloBlob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "eu-apoio-dr-ze-alfredo-4063.png";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const shareSelo = async () => {
+    if (!finalSeloBlob || sharing) return;
+    setSharing(true);
+    try {
+      const file = new File([finalSeloBlob], "eu-apoio-dr-ze-alfredo-4063.png", { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ title: "Dr. Zé Alfredo 4063", text: "Meu selo de apoio ao Dr. Zé Alfredo 4063.", files: [file] });
+      } else if (navigator.share) {
+        await navigator.share({ title: "Dr. Zé Alfredo 4063", text: "Crie seu selo de apoio.", url: window.location.href });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(window.location.href);
+        setError("Link copiado. Cole-o onde quiser compartilhar.");
+      } else {
+        saveSelo();
+      }
+    } catch (err) {
+      if (err?.name !== "AbortError") {
+        try { await navigator.share?.({ title: "Dr. Zé Alfredo 4063", url: window.location.href }); }
+        catch { setError("Use Salvar imagem para compartilhar seu selo manualmente."); }
+      }
+    } finally { setSharing(false); }
   };
 
   return (
@@ -151,7 +189,7 @@ export function DrAlfredoPage() {
           </div>
           <p>Envie sua foto, gere seu selo de apoio e compartilhe esta mensagem com quem acredita em uma cidade melhor.</p>
           <div className="dralfredo-counter" aria-live="polite">
-            <span className="dralfredo-counter-label">APOIOS QUE JÁ ESTÃO COM A GENTE</span>
+            <span className="dralfredo-counter-label">SELOS CRIADOS POR APOIADORES</span>
             <b>{String(downloads).padStart(4, "0")}</b>
             <span className="dralfredo-counter-copy">{supportText}</span>
           </div>
@@ -204,8 +242,10 @@ export function DrAlfredoPage() {
             <button type="button" onClick={() => setThanksOpen(false)} aria-label="Fechar">×</button>
             <span>APOIO REGISTRADO · 4063</span>
             <h2 id="dralfredo-thanks-title">Obrigado por estar com o Dr. Zé Alfredo.</h2>
-            <p>Seu selo já foi baixado. Compartilhe nas redes e ajude essa mensagem a chegar ainda mais longe.</p>
+            <p>Seu selo está pronto. Salve ou compartilhe quantas vezes quiser.</p>
             <div className="dralfredo-thanks-number"><span>DEPUTADO<br />FEDERAL</span><b>4063</b></div>
+            {finalSeloUrl && <img className="dralfredo-thanks-preview" src={finalSeloUrl} alt="Seu selo de apoio pronto" />}
+            <div className="dralfredo-thanks-actions"><button type="button" onClick={saveSelo}>Baixar meu selo</button><button type="button" onClick={shareSelo} disabled={sharing}>{sharing ? "Abrindo..." : "Compartilhar"}</button></div>
             <a className="dralfredo-thanks-instagram" href="https://www.instagram.com/dr.zealfredo" target="_blank" rel="noreferrer">Acompanhar @dr.zealfredo</a>
             <div className="dralfredo-thanks-credit">
               <span>Esta experiência foi criada pela Triso Studio.</span>
