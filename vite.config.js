@@ -9,6 +9,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         dralfredo: resolve(__dirname, 'dralfredo.html'),
+        marlonreis: resolve(__dirname, 'marlonreis.html'),
       },
     },
   },

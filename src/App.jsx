@@ -27,7 +27,9 @@ import {
   useAuth,
 } from "./features/auth/AuthContext.jsx";
 import { SiteHeader } from "./components/SiteHeader.jsx";
-import { DrAlfredoPage } from "./features/dralfredo/DrAlfredoPage.jsx";
+import { TrisoLogo } from "./components/TrisoLogo.jsx";
+import { CampaignSealPage } from "./features/campaigns/CampaignSealPage.jsx";
+import { CAMPAIGNS } from "./features/campaigns/campaigns.js";
 
 const categories = CATEGORY_LABELS;
 const emptyProduct = CATALOG_OPTIONS.productDefaults;
@@ -269,24 +271,7 @@ const TrashIcon = () => (
   </svg>
 );
 
-function Brand({ dark = false, large = false }) {
-  return (
-    <a
-      className={`brand ${dark ? "brand-dark" : ""} ${large ? "brand-large" : ""}`}
-      href="/"
-      aria-label="Triso, página inicial"
-    >
-      <span className="brand-mark" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-      </span>
-      <span>
-        TRISO<small>STUDIO</small>
-      </span>
-    </a>
-  );
-}
+const Brand = TrisoLogo;
 
 function AdminSidebar({ active, session, onLoggedOut }) {
   const [leaving, setLeaving] = useState(false);
@@ -5880,7 +5865,8 @@ export default function App() {
   const isAdminRoute = routeParams.has("admin") || Boolean(adminPathMatch);
   const customerRoute = isAdminRoute ? "" : location.pathname;
   let customerPage = null;
-  if (customerRoute === "/dralfredo") customerPage = <DrAlfredoPage />;
+  if (customerRoute === "/dralfredo") customerPage = <CampaignSealPage campaign={CAMPAIGNS.dralfredo} />;
+  if (customerRoute === "/marlonreis") customerPage = <CampaignSealPage campaign={CAMPAIGNS.marlonreis} />;
   if (customerRoute === "/carrinho") customerPage = <CartPage />;
   if (customerRoute === "/entrar") customerPage = <UniversalAuthPage />;
   if (customerRoute === "/cadastro")

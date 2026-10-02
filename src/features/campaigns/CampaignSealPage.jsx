@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { campaignService } from "../../services/campaignService.js";
+import { TrisoLogo } from "../../components/TrisoLogo.jsx";
+import { CAMPAIGNS } from "./campaigns.js";
 
-const TEMPLATE_URL = import.meta.env.VITE_DRALFREDO_TEMPLATE_URL || "/DrAlfredo/drAlfredo4063.png";
-const COUNTER_KEY = "dralfredo-download-count";
-
-const readCounter = () => Number(window.localStorage.getItem(COUNTER_KEY) || 0);
+const readCounter = (campaignId) => Number(window.localStorage.getItem(`${campaignId}-download-count`) || 0);
 
 const loadImage = (source) =>
   new Promise((resolve, reject) => {
@@ -30,7 +29,30 @@ function drawAdjustedImage(context, image, width, height, zoom = 1, position = {
   context.drawImage(image, x, y, drawWidth, drawHeight);
 }
 
-function composeSelo(person, template, zoom, position) {
+function drawCampaignFrame(context, width, height, campaign) {
+  context.save();
+  context.strokeStyle = "#ffda20";
+  context.lineWidth = Math.max(20, width * 0.025);
+  context.strokeRect(0, 0, width, height);
+  context.fillStyle = "rgba(9, 81, 207, .94)";
+  context.fillRect(0, height * 0.73, width, height * 0.27);
+  context.fillStyle = "rgba(255, 218, 32, .96)";
+  context.fillRect(width * 0.055, height * 0.055, width * 0.4, height * 0.09);
+  context.fillStyle = "#06316f";
+  context.font = `900 ${Math.round(width * 0.045)}px Arial`;
+  context.fillText("EU APOIO", width * 0.08, height * 0.115);
+  context.fillStyle = "#fff";
+  context.font = `900 ${Math.round(width * 0.087)}px Arial`;
+  context.fillText(campaign.name.toUpperCase(), width * 0.055, height * 0.83);
+  context.font = `800 ${Math.round(width * 0.038)}px Arial`;
+  context.fillText("DEPUTADO FEDERAL", width * 0.06, height * 0.89);
+  context.fillStyle = "#ffda20";
+  context.font = `900 ${Math.round(width * 0.15)}px Arial`;
+  context.fillText(campaign.number, width * 0.055, height * 0.985);
+  context.restore();
+}
+
+function composeSelo(person, template, zoom, position, campaign) {
   const canvas = document.createElement("canvas");
   canvas.width = template?.width || 1080;
   canvas.height = template?.height || 1080;
@@ -39,10 +61,11 @@ function composeSelo(person, template, zoom, position) {
   context.fillRect(0, 0, canvas.width, canvas.height);
   drawAdjustedImage(context, person, canvas.width, canvas.height, zoom, position);
   if (template) context.drawImage(template, 0, 0, canvas.width, canvas.height);
+  else drawCampaignFrame(context, canvas.width, canvas.height, campaign);
   return canvas;
 }
 
-export function DrAlfredoPage() {
+export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
   const [photo, setPhoto] = useState("");
   const [downloads, setDownloads] = useState(0);
   const [creating, setCreating] = useState(false);
@@ -56,9 +79,20 @@ export function DrAlfredoPage() {
   const [finalSeloBlob, setFinalSeloBlob] = useState(null);
   const [sharing, setSharing] = useState(false);
   const previewInputRef = useRef(null);
+  const campaignStyle = {
+    "--campaign-primary": campaign.theme.primary,
+    "--campaign-deep": campaign.theme.deep,
+    "--campaign-accent": campaign.theme.accent,
+    "--campaign-action": campaign.theme.action,
+    "--campaign-action-hover": campaign.theme.actionHover,
+  };
 
   useEffect(() => {
     let active = true;
+    if (!campaign.trackingEnabled) {
+      setDownloads(readCounter(campaign.id));
+      return undefined;
+    }
     campaignService
       .getDownloads()
       .then((data) => {
@@ -68,11 +102,11 @@ export function DrAlfredoPage() {
       })
       .catch((err) => {
         if (!active) return;
-        setDownloads(readCounter());
+        setDownloads(readCounter(campaign.id));
         setCounterError(`Não foi possível consultar os apoios agora (HTTP ${err?.status || "rede"}).`);
       });
     return () => { active = false; };
-  }, []);
+  }, [campaign]);
 
   useEffect(() => {
     if (!photo) {
@@ -80,13 +114,13 @@ export function DrAlfredoPage() {
       return undefined;
     }
     let cancelled = false;
-    Promise.all([loadImage(photo), loadImage(TEMPLATE_URL).catch(() => null)])
+    Promise.all([loadImage(photo), loadImage(campaign.templateUrl).catch(() => null)])
       .then(([person, template]) => {
-        if (!cancelled) setPreviewUrl(composeSelo(person, template, zoom, position).toDataURL("image/png"));
+        if (!cancelled) setPreviewUrl(composeSelo(person, template, zoom, position, campaign).toDataURL("image/png"));
       })
       .catch(() => !cancelled && setPreviewUrl(photo));
     return () => { cancelled = true; };
-  }, [photo, zoom, position]);
+  }, [photo, zoom, position, campaign]);
 
   const supportText = useMemo(
     () => `${downloads} ${downloads === 1 ? "apoio registrado" : "apoios registrados"}`,
@@ -109,12 +143,18 @@ export function DrAlfredoPage() {
   };
 
   const registerDownload = async () => {
+    if (!campaign.trackingEnabled) {
+      const nextDownloads = readCounter(campaign.id) + 1;
+      window.localStorage.setItem(`${campaign.id}-download-count`, String(nextDownloads));
+      setDownloads(nextDownloads);
+      return;
+    }
     try {
       const result = await campaignService.recordDownload();
       setDownloads(Number(result?.downloadsCount || downloads));
     } catch {
-      const nextDownloads = readCounter() + 1;
-      window.localStorage.setItem(COUNTER_KEY, String(nextDownloads));
+      const nextDownloads = readCounter(campaign.id) + 1;
+      window.localStorage.setItem(`${campaign.id}-download-count`, String(nextDownloads));
       setDownloads(nextDownloads);
     }
   };
@@ -128,9 +168,9 @@ export function DrAlfredoPage() {
     try {
       const [person, template] = await Promise.all([
         loadImage(photo),
-        loadImage(TEMPLATE_URL).catch(() => null),
+        loadImage(campaign.templateUrl).catch(() => null),
       ]);
-      const canvas = composeSelo(person, template, zoom, position);
+      const canvas = composeSelo(person, template, zoom, position, campaign);
       const [blob] = await Promise.all([
         new Promise((resolve) => canvas.toBlob(resolve, "image/png")),
         new Promise((resolve) => window.setTimeout(resolve, 3000)),
@@ -151,7 +191,7 @@ export function DrAlfredoPage() {
     const url = URL.createObjectURL(finalSeloBlob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "eu-apoio-dr-ze-alfredo-4063.png";
+    link.download = `eu-apoio-${campaign.id}-${campaign.number}.png`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -162,11 +202,11 @@ export function DrAlfredoPage() {
     if (!finalSeloBlob || sharing) return;
     setSharing(true);
     try {
-      const file = new File([finalSeloBlob], "eu-apoio-dr-ze-alfredo-4063.png", { type: "image/png" });
+      const file = new File([finalSeloBlob], `eu-apoio-${campaign.id}-${campaign.number}.png`, { type: "image/png" });
       if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ title: "Dr. Zé Alfredo 4063", text: "Meu selo de apoio ao Dr. Zé Alfredo 4063.", files: [file] });
+        await navigator.share({ title: `${campaign.name} ${campaign.number}`, text: `Meu selo de apoio a ${campaign.name} ${campaign.number}.`, files: [file] });
       } else if (navigator.share) {
-        await navigator.share({ title: "Dr. Zé Alfredo 4063", text: "Crie seu selo de apoio.", url: window.location.href });
+        await navigator.share({ title: `${campaign.name} ${campaign.number}`, text: "Crie seu selo de apoio.", url: window.location.href });
       } else if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(window.location.href);
         setError("Link copiado. Cole-o onde quiser compartilhar.");
@@ -175,37 +215,35 @@ export function DrAlfredoPage() {
       }
     } catch (err) {
       if (err?.name !== "AbortError") {
-        try { await navigator.share?.({ title: "Dr. Zé Alfredo 4063", url: window.location.href }); }
+        try { await navigator.share?.({ title: `${campaign.name} ${campaign.number}`, url: window.location.href }); }
         catch { setError("Use Salvar imagem para compartilhar seu selo manualmente."); }
       }
     } finally { setSharing(false); }
   };
 
   return (
-    <main className="dralfredo-page">
+    <main className={`dralfredo-page campaign-${campaign.id}`} style={campaignStyle}>
       <header className="dralfredo-header">
-        <a className="dralfredo-brand" href="/" aria-label="Triso Studio">
-          TRISO <small>STUDIO</small>
-        </a>
+        <TrisoLogo className="dralfredo-brand" light />
         <span>Uma iniciativa de apoio</span>
       </header>
 
       <section className="dralfredo-hero">
         <div className="dralfredo-intro">
-          <span className="dralfredo-kicker">SEU APOIO FAZ A DIFERENÇA</span>
-          <h1>Mostre que você apoia o <em>Dr. Zé Alfredo.</em></h1>
+          <span className="dralfredo-kicker">{campaign.copy.kicker}</span>
+          <h1>Mostre que você apoia <em>{campaign.name}.</em></h1>
           <div className="dralfredo-candidate-number">
             <span>DEPUTADO<br />FEDERAL</span>
-            <b>4063</b>
+            <b>{campaign.number}</b>
           </div>
-          <p>Envie sua foto, gere seu selo de apoio e compartilhe esta mensagem com quem acredita em uma cidade melhor.</p>
+          <p>{campaign.copy.description}</p>
           <div className="dralfredo-counter" aria-live="polite">
             <span className="dralfredo-counter-label">SELOS CRIADOS POR APOIADORES</span>
             <b>{String(downloads).padStart(4, "0")}</b>
             <span className="dralfredo-counter-copy">{supportText}</span>
           </div>
           {counterError && <small className="dralfredo-counter-error">{counterError}</small>}
-          <a className="dralfredo-instagram" href="https://www.instagram.com/dr.zealfredo" target="_blank" rel="noreferrer">@dr.zealfredo</a>
+          <a className="dralfredo-instagram" href={`https://www.instagram.com/${campaign.instagram}`} target="_blank" rel="noreferrer">@{campaign.instagram}</a>
         </div>
 
         <div className="dralfredo-maker">
@@ -220,7 +258,7 @@ export function DrAlfredoPage() {
             }}
             aria-label={photo ? "Trocar foto" : "Enviar sua foto"}
           >
-            {photo ? <img src={previewUrl || photo} alt="Prévia da foto enviada" /> : <img className="dralfredo-template-preview" src={TEMPLATE_URL} alt="" aria-hidden="true" />}
+            {photo ? <img src={previewUrl || photo} alt="Prévia da foto enviada" /> : <img className="dralfredo-template-preview" src={campaign.templateUrl} alt="" aria-hidden="true" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
             {!photo && <span>Sua foto<br />aparece aqui</span>}
             {!photo && <span className="dralfredo-preview-action">Toque para enviar sua foto</span>}
           </div>
@@ -254,13 +292,13 @@ export function DrAlfredoPage() {
         <div className="dralfredo-thanks-backdrop" role="presentation">
           <section className="dralfredo-thanks" role="dialog" aria-modal="true" aria-labelledby="dralfredo-thanks-title">
             <button type="button" onClick={() => setThanksOpen(false)} aria-label="Fechar">×</button>
-            <span>APOIO REGISTRADO · 4063</span>
-            <h2 id="dralfredo-thanks-title">Obrigado por estar com o Dr. Zé Alfredo.</h2>
+            <span>APOIO REGISTRADO · {campaign.number}</span>
+            <h2 id="dralfredo-thanks-title">{campaign.copy.thanks}</h2>
             <p>Seu selo está pronto. Baixe ou compartilhe quando quiser.</p>
-            <div className="dralfredo-thanks-number"><span>DEPUTADO<br />FEDERAL</span><b>4063</b></div>
+            <div className="dralfredo-thanks-number"><span>DEPUTADO<br />FEDERAL</span><b>{campaign.number}</b></div>
             {finalSeloUrl && <img className="dralfredo-thanks-preview" src={finalSeloUrl} alt="Seu selo de apoio pronto" />}
             <div className="dralfredo-thanks-actions"><button type="button" onClick={saveSelo}>Baixar meu selo</button><button type="button" onClick={shareSelo} disabled={sharing}>{sharing ? "Abrindo..." : "Compartilhar"}</button></div>
-            <a className="dralfredo-thanks-instagram" href="https://www.instagram.com/dr.zealfredo" target="_blank" rel="noreferrer">Acompanhar @dr.zealfredo</a>
+            <a className="dralfredo-thanks-instagram" href={`https://www.instagram.com/${campaign.instagram}`} target="_blank" rel="noreferrer">Acompanhar @{campaign.instagram}</a>
             <div className="dralfredo-thanks-credit">
               <span>Esta experiência foi criada pela Triso Studio.</span>
               <a href="/">Se quiser nos conhecer, clique aqui <span>→</span></a>

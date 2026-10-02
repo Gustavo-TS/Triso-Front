@@ -13,10 +13,15 @@ import './field-light.css'
 import './dralfredo.css'
 import { CartProvider } from './features/cart/CartContext.jsx'
 import { AuthProvider } from './features/auth/AuthContext.jsx'
-import { DrAlfredoPage } from './features/dralfredo/DrAlfredoPage.jsx'
+import { CampaignSealPage } from './features/campaigns/CampaignSealPage.jsx'
+import { CAMPAIGNS } from './features/campaigns/campaigns.js'
 
-const isDrAlfredoRoute = window.location.pathname === '/dralfredo'
+const campaignPage = window.location.pathname === '/dralfredo'
+  ? <CampaignSealPage campaign={CAMPAIGNS.dralfredo} />
+  : window.location.pathname === '/marlonreis'
+    ? <CampaignSealPage campaign={CAMPAIGNS.marlonreis} />
+    : null
 
 createRoot(document.getElementById('root')).render(
-  <React.StrictMode>{isDrAlfredoRoute ? <DrAlfredoPage /> : <AuthProvider><CartProvider><App /></CartProvider></AuthProvider>}</React.StrictMode>,
+  <React.StrictMode>{campaignPage || <AuthProvider><CartProvider><App /></CartProvider></AuthProvider>}</React.StrictMode>,
 )

@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/dralfredo", "destination": "/dralfredo.html" },
+    { "source": "/marlonreis", "destination": "/marlonreis.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
