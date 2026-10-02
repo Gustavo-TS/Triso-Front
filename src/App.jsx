@@ -27,6 +27,7 @@ import {
   useAuth,
 } from "./features/auth/AuthContext.jsx";
 import { SiteHeader } from "./components/SiteHeader.jsx";
+import { DrAlfredoPage } from "./features/dralfredo/DrAlfredoPage.jsx";
 
 const categories = CATEGORY_LABELS;
 const emptyProduct = CATALOG_OPTIONS.productDefaults;
@@ -5879,6 +5880,7 @@ export default function App() {
   const isAdminRoute = routeParams.has("admin") || Boolean(adminPathMatch);
   const customerRoute = isAdminRoute ? "" : location.pathname;
   let customerPage = null;
+  if (customerRoute === "/dralfredo") customerPage = <DrAlfredoPage />;
   if (customerRoute === "/carrinho") customerPage = <CartPage />;
   if (customerRoute === "/entrar") customerPage = <UniversalAuthPage />;
   if (customerRoute === "/cadastro")

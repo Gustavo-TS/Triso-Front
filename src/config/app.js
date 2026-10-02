@@ -34,6 +34,7 @@ export const APP_CONFIG = {
     adminOrders: '/api/v1/admin/orders',
     adminDashboard: '/api/v1/admin/dashboard',
     adminTasks: '/api/v1/admin/tasks',
+    drAlfredoDownloads: '/api/v1/campaigns/dralfredo/downloads',
     login: '/api/v1/auth/login',
     session: '/api/v1/auth/session',
     logout: '/api/v1/auth/logout',
