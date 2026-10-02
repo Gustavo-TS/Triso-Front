@@ -25,7 +25,7 @@ export const CAMPAIGNS = {
     number: "1899",
     instagram: "marlonreisadv",
     templateUrl: import.meta.env.VITE_MARLONREIS_TEMPLATE_URL || "/MarlonReis/MarlonReis1899.png",
-    trackingEnabled: false,
+    trackingEnabled: true,
     copy: {
       kicker: "SEU APOIO FAZ A DIFERENÇA",
       description: "Envie sua foto, gere seu selo de apoio e compartilhe esta mensagem com quem acredita em um Brasil mais justo.",

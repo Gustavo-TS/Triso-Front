@@ -94,7 +94,7 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
       return undefined;
     }
     campaignService
-      .getDownloads()
+      .getDownloads(campaign.id)
       .then((data) => {
         if (!active) return;
         setDownloads(Number(data?.downloadsCount || 0));
@@ -150,7 +150,7 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
       return;
     }
     try {
-      const result = await campaignService.recordDownload();
+      const result = await campaignService.recordDownload(campaign.id);
       setDownloads(Number(result?.downloadsCount || downloads));
     } catch {
       const nextDownloads = readCounter(campaign.id) + 1;

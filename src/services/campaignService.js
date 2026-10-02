@@ -1,15 +1,16 @@
-import { APP_CONFIG } from "../config/app.js";
 import { apiClient } from "../lib/apiClient.js";
 
 const unwrap = (body) => body?.data ?? body;
+const downloadsEndpoint = (campaignId) =>
+  `/api/v1/campaigns/${encodeURIComponent(campaignId)}/downloads`;
 
 export const campaignService = {
-  getDownloads: () =>
+  getDownloads: (campaignId) =>
     apiClient
-      .get(APP_CONFIG.endpoints.drAlfredoDownloads, { cache: "no-store" })
+      .get(downloadsEndpoint(campaignId), { cache: "no-store" })
       .then(unwrap),
-  recordDownload: () =>
+  recordDownload: (campaignId) =>
     apiClient
-      .post(APP_CONFIG.endpoints.drAlfredoDownloads, { source: "website" })
+      .post(downloadsEndpoint(campaignId), { source: "website" })
       .then(unwrap),
 };
