@@ -22,6 +22,8 @@ pnpm-debug.log*
 coverage/
 .vite/
 .cache/
+.playwright-cli/
+output/playwright/
 
 # Editors
 .vscode/

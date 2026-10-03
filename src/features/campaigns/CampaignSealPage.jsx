@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { campaignService } from "../../services/campaignService.js";
 import { TrisoLogo } from "../../components/TrisoLogo.jsx";
 import { CAMPAIGNS } from "./campaigns.js";
+import { SEAL_FORMATS, photoBounds, drawResponsiveTemplate } from "./sealFormats.js";
 
 const readCounter = (campaignId) => Number(window.localStorage.getItem(`${campaignId}-download-count`) || 0);
 
@@ -12,22 +13,6 @@ const loadImage = (source) =>
     image.onerror = reject;
     image.src = source;
   });
-
-function drawAdjustedImage(context, image, width, height, zoom = 1, position = { x: 0, y: 0 }) {
-  const imageRatio = image.width / image.height;
-  const boxRatio = width / height;
-  let drawWidth = width;
-  let drawHeight = height;
-  if (imageRatio > boxRatio) drawWidth = height * imageRatio;
-  else drawHeight = width / imageRatio;
-  drawWidth *= zoom;
-  drawHeight *= zoom;
-  const travelX = Math.max(Math.abs(drawWidth - width) / 2, width * 0.34);
-  const travelY = Math.max(Math.abs(drawHeight - height) / 2, height * 0.34);
-  const x = (width - drawWidth) / 2 + (position.x / 100) * travelX;
-  const y = (height - drawHeight) / 2 + (position.y / 100) * travelY;
-  context.drawImage(image, x, y, drawWidth, drawHeight);
-}
 
 function drawCampaignFrame(context, width, height, campaign) {
   context.save();
@@ -52,20 +37,22 @@ function drawCampaignFrame(context, width, height, campaign) {
   context.restore();
 }
 
-function composeSelo(person, template, zoom, position, campaign) {
+function composeSelo(person, template, zoom, position, campaign, format) {
   const canvas = document.createElement("canvas");
-  canvas.width = template?.width || 1080;
-  canvas.height = template?.height || 1080;
+  canvas.width = format.width;
+  canvas.height = format.height;
   const context = canvas.getContext("2d");
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, canvas.width, canvas.height);
-  drawAdjustedImage(context, person, canvas.width, canvas.height, zoom, position);
-  if (template) context.drawImage(template, 0, 0, canvas.width, canvas.height);
+  if (person) context.drawImage(person, ...photoBounds(person, canvas.width, canvas.height, zoom, position));
+  if (template) drawResponsiveTemplate(context, template, canvas.width, canvas.height);
   else drawCampaignFrame(context, canvas.width, canvas.height, campaign);
   return canvas;
 }
 
 export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
+  const [format, setFormat] = useState(SEAL_FORMATS[0]);
+  const [finalFormat, setFinalFormat] = useState(SEAL_FORMATS[0]);
   const [photo, setPhoto] = useState("");
   const [downloads, setDownloads] = useState(0);
   const [creating, setCreating] = useState(false);
@@ -109,18 +96,14 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
   }, [campaign]);
 
   useEffect(() => {
-    if (!photo) {
-      setPreviewUrl("");
-      return undefined;
-    }
     let cancelled = false;
-    Promise.all([loadImage(photo), loadImage(campaign.templateUrl).catch(() => null)])
+    Promise.all([photo ? loadImage(photo) : null, loadImage(campaign.templateUrl).catch(() => null)])
       .then(([person, template]) => {
-        if (!cancelled) setPreviewUrl(composeSelo(person, template, zoom, position, campaign).toDataURL("image/png"));
+        if (!cancelled) setPreviewUrl(composeSelo(person, template, zoom, position, campaign, format).toDataURL("image/png"));
       })
       .catch(() => !cancelled && setPreviewUrl(photo));
     return () => { cancelled = true; };
-  }, [photo, zoom, position, campaign]);
+  }, [photo, zoom, position, campaign, format]);
 
   const supportText = useMemo(
     () => `${downloads} ${downloads === 1 ? "apoio registrado" : "apoios registrados"}`,
@@ -135,6 +118,7 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
       return;
     }
     setError("");
+    setFormat(SEAL_FORMATS[0]);
     setZoom(1);
     setPosition({ x: 0, y: 0 });
     const reader = new FileReader();
@@ -159,25 +143,23 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
     }
   };
 
-  const createAndDownload = async () => {
+  const generateSelo = async (selectedFormat, registerSupport = false) => {
     if (!photo || creating) return;
     setCreating(true);
-    setThanksOpen(false);
     setError("");
-    void registerDownload();
+    if (registerSupport) void registerDownload();
     try {
       const [person, template] = await Promise.all([
         loadImage(photo),
         loadImage(campaign.templateUrl).catch(() => null),
       ]);
-      const canvas = composeSelo(person, template, zoom, position, campaign);
-      const [blob] = await Promise.all([
-        new Promise((resolve) => canvas.toBlob(resolve, "image/png")),
-        new Promise((resolve) => window.setTimeout(resolve, 3000)),
-      ]);
+      const canvas = composeSelo(person, template, zoom, position, campaign, selectedFormat);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
       if (!blob) throw new Error("Não foi possível gerar o selo.");
       setFinalSeloUrl(canvas.toDataURL("image/png"));
       setFinalSeloBlob(blob);
+      setFinalFormat(selectedFormat);
+      setFormat(selectedFormat);
       setThanksOpen(true);
     } catch {
       setError("Não foi possível montar sua imagem agora. Tente novamente.");
@@ -186,12 +168,14 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
     }
   };
 
+  const createAndDownload = () => generateSelo(format, true);
+
   const saveSelo = () => {
     if (!finalSeloBlob) return;
     const url = URL.createObjectURL(finalSeloBlob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `eu-apoio-${campaign.id}-${campaign.number}.png`;
+    link.download = `eu-apoio-${campaign.id}-${campaign.number}-${finalFormat.id}-${finalFormat.width}x${finalFormat.height}.png`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -202,7 +186,7 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
     if (!finalSeloBlob || sharing) return;
     setSharing(true);
     try {
-      const file = new File([finalSeloBlob], `eu-apoio-${campaign.id}-${campaign.number}.png`, { type: "image/png" });
+      const file = new File([finalSeloBlob], `eu-apoio-${campaign.id}-${campaign.number}-${finalFormat.id}-${finalFormat.width}x${finalFormat.height}.png`, { type: "image/png" });
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({ title: `${campaign.name} ${campaign.number}`, text: `Meu selo de apoio a ${campaign.name} ${campaign.number}.`, files: [file] });
       } else if (navigator.share) {
@@ -247,27 +231,35 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
         </div>
 
         <div className="dralfredo-maker">
+          {photo && <fieldset className="dralfredo-formats">
+            <legend>Onde você quer aparecer?</legend>
+            <p className="dralfredo-format-intro">Escolha o espaço onde a sua foto vai ser publicada.</p>
+            <div className="dralfredo-format-options">
+              {SEAL_FORMATS.map((option) => <label key={option.id} data-format={option.id}>
+                <input type="radio" name="seal-format" checked={format.id === option.id} onChange={() => { setFormat(option); setZoom(1); setPosition({ x: 0, y: 0 }); }} />
+                <span><i aria-hidden="true" /><b>{option.label}</b><small>{option.hint.split(" · ")[0]}</small></span>
+              </label>)}
+            </div>
+          </fieldset>}
           <input ref={previewInputRef} className="dralfredo-preview-input" type="file" accept="image/*" onChange={selectPhoto} />
           <div
             className={`dralfredo-preview ${photo ? "has-photo" : ""}`}
+            style={{ aspectRatio: `${format.width} / ${format.height}` }}
             role="button"
             tabIndex={0}
             onClick={() => previewInputRef.current?.click()}
             onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") previewInputRef.current?.click();
+              if (event.key === "Enter" || event.key === " ") { event.preventDefault(); previewInputRef.current?.click(); }
             }}
             aria-label={photo ? "Trocar foto" : "Enviar sua foto"}
           >
-            {photo ? <img src={previewUrl || photo} alt="Prévia da foto enviada" /> : <img className="dralfredo-template-preview" src={campaign.templateUrl} alt="" aria-hidden="true" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
+            {previewUrl && <img src={previewUrl} alt={photo ? `Prévia no formato ${format.label}` : "Moldura do formato selecionado"} />}
             {!photo && <span>Sua foto<br />aparece aqui</span>}
             {!photo && <span className="dralfredo-preview-action">Toque para enviar sua foto</span>}
           </div>
-          <p className="dralfredo-upload-hint">{photo ? "Toque na imagem para trocar sua foto." : "Toque na imagem e escolha uma foto para criar seu selo."}</p>
+          <p className="dralfredo-upload-hint">{photo ? "A prévia acima mostra como sua foto ficará no formato selecionado." : "Toque na imagem e escolha uma foto para criar seu selo."}</p>
           {photo && <div className="dralfredo-photo-adjustments">
-            <div className="dralfredo-adjustments-head">
-              <b>Ajuste sua foto</b>
-              <button type="button" onClick={() => { setZoom(1); setPosition({ x: 0, y: 0 }); }}>Centralizar</button>
-            </div>
+            <div className="dralfredo-adjustments-head"><b>Ajuste de posição</b><button type="button" onClick={() => { setZoom(1); setPosition({ x: 0, y: 0 }); }}>Centralizar</button></div>
             <label>Zoom <input type="range" min="0.25" max="2.5" step="0.01" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} /></label>
             <div className="dralfredo-position-controls">
               <label>Horizontal <input type="range" min="-100" max="100" value={position.x} onChange={(event) => setPosition((current) => ({ ...current, x: Number(event.target.value) }))} /></label>
@@ -294,7 +286,7 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
             <button type="button" onClick={() => setThanksOpen(false)} aria-label="Fechar">×</button>
             <span>APOIO REGISTRADO · {campaign.number}</span>
             <h2 id="dralfredo-thanks-title">{campaign.copy.thanks}</h2>
-            <p>Seu selo está pronto. Baixe ou compartilhe quando quiser.</p>
+            <p>Seu selo está pronto.</p>
             <div className="dralfredo-thanks-number"><span>DEPUTADO<br />FEDERAL</span><b>{campaign.number}</b></div>
             {finalSeloUrl && <img className="dralfredo-thanks-preview" src={finalSeloUrl} alt="Seu selo de apoio pronto" />}
             <div className="dralfredo-thanks-actions"><button type="button" onClick={saveSelo}>Baixar meu selo</button><button type="button" onClick={shareSelo} disabled={sharing}>{sharing ? "Abrindo..." : "Compartilhar"}</button></div>
