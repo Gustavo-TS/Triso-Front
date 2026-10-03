@@ -145,6 +145,7 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
 
   const generateSelo = async (selectedFormat, registerSupport = false) => {
     if (!photo || creating) return;
+    const minimumLoading = new Promise((resolve) => window.setTimeout(resolve, 3000));
     setCreating(true);
     setError("");
     if (registerSupport) void registerDownload();
@@ -164,6 +165,7 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
     } catch {
       setError("Não foi possível montar sua imagem agora. Tente novamente.");
     } finally {
+      await minimumLoading;
       setCreating(false);
     }
   };
