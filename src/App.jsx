@@ -276,6 +276,14 @@ const Brand = TrisoLogo;
 
 function AdminSidebar({ active, session, onLoggedOut }) {
   const [leaving, setLeaving] = useState(false);
+  const navigateAdmin = (event, href) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (window.location.pathname === href) return;
+    window.history.pushState({}, "", href);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
   const logout = async () => {
     if (leaving) return;
     setLeaving(true);
@@ -315,13 +323,14 @@ function AdminSidebar({ active, session, onLoggedOut }) {
             key={link.id}
             className={active === link.id ? "active" : ""}
             href={link.href}
+            onClick={(event) => navigateAdmin(event, link.href)}
             aria-current={active === link.id ? "page" : undefined}
           >
             <i>{link.icon}</i>
             {link.label}
           </a>
         ))}
-        <a href="/">
+        <a href="/" onClick={(event) => navigateAdmin(event, "/")}>
           <i>↗</i> Voltar à loja
         </a>
       </nav>
