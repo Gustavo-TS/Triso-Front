@@ -56,7 +56,7 @@ export const CAMPAIGNS = {
   },
   portalnoticiasbahia: {
     id: "portalnoticiasbahia", name: "Portal Notícias Bahia", number: "", instagram: "portalnoticiasbahia",
-    templateUrl: "/PortalBahia/portalbahia.png", trackingEnabled: false, brandPage: true,
+    templateUrl: "/PortalBahia/portalbahia.png", trackingEnabled: true, brandPage: true,
     copy: { kicker: "SELO OFICIAL · PORTAL NOTÍCIAS BAHIA", description: "Escolha uma foto sua e crie seu selo para mostrar que você acompanha as notícias da Bahia.", thanks: "Você faz parte da nossa comunidade." },
     theme: { primary: "#0756a8", deep: "#062b59", accent: "#f5c400", action: "#d62828", actionHover: "#b51f1f" },
   },
