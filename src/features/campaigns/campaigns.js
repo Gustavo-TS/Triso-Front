@@ -68,7 +68,7 @@ export const CAMPAIGNS = {
       description: "Envie uma foto, ajuste do jeito que quiser e crie seu próprio selo Triso. Esta é a mesma experiência que podemos criar para a sua marca.",
       thanks: "Seu selo Triso está pronto!",
     },
-    theme: { primary: "#24145a", deep: "#090812", accent: "#c7ff41", action: "#7857ff", actionHover: "#9a85ff" },
+    theme: { primary: "#168fd1", deep: "#7b247f", accent: "#ef4f9b", action: "#6d45d9", actionHover: "#935df2" },
   },
 };
 
