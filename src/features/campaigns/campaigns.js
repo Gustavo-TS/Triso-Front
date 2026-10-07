@@ -45,7 +45,7 @@ export const CAMPAIGNS = {
     number: "",
     instagram: "nathanbarbearia",
     templateUrl: "/NathanBarbearia/nathan_barbearia_transparente.png",
-    trackingEnabled: false,
+    trackingEnabled: true,
     brandPage: true,
     copy: {
       kicker: "SELO OFICIAL · NATHAN BARBEARIA",
