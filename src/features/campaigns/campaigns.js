@@ -44,7 +44,7 @@ export const CAMPAIGNS = {
     name: "Nathan Barbearia",
     number: "",
     instagram: "nathanbarbearia",
-    templateUrl: "/NathanBarbearia/nathanBarbearia.jpeg",
+    templateUrl: "/NathanBarbearia/nathan_barbearia_transparente.png",
     trackingEnabled: false,
     brandPage: true,
     copy: {
@@ -53,6 +53,12 @@ export const CAMPAIGNS = {
       thanks: "Agora você faz parte do time Nathan.",
     },
     theme: { primary: "#171717", deep: "#050505", accent: "#c99a55", action: "#c99a55", actionHover: "#e0b875" },
+  },
+  portalnoticiasbahia: {
+    id: "portalnoticiasbahia", name: "Portal Notícias Bahia", number: "", instagram: "portalnoticiasbahia",
+    templateUrl: "/PortalBahia/portalbahia.png", trackingEnabled: false, brandPage: true,
+    copy: { kicker: "SELO OFICIAL · PORTAL NOTÍCIAS BAHIA", description: "Escolha uma foto sua e crie seu selo para mostrar que você acompanha as notícias da Bahia.", thanks: "Você faz parte da nossa comunidade." },
+    theme: { primary: "#0756a8", deep: "#062b59", accent: "#f5c400", action: "#d62828", actionHover: "#b51f1f" },
   },
 };
 

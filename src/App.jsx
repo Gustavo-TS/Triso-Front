@@ -5868,6 +5868,7 @@ export default function App() {
   if (customerRoute === "/dralfredo") customerPage = <CampaignSealPage campaign={CAMPAIGNS.dralfredo} />;
   if (customerRoute === "/marlonreis") customerPage = <CampaignSealPage campaign={CAMPAIGNS.marlonreis} />;
   if (customerRoute === "/nathanbarbearia") customerPage = <CampaignSealPage campaign={CAMPAIGNS.nathanbarbearia} />;
+  if (customerRoute === "/portalnoticiasbahia") customerPage = <CampaignSealPage campaign={CAMPAIGNS.portalnoticiasbahia} />;
   if (customerRoute === "/carrinho") customerPage = <CartPage />;
   if (customerRoute === "/entrar") customerPage = <UniversalAuthPage />;
   if (customerRoute === "/cadastro")

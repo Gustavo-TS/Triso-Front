@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import '../styles.css'
@@ -10,7 +10,7 @@ import './shipping-settings.css'
 import './commerce.css'
 import './checkout.css'
 import './field-light.css'
-import './dralfredo.css'
+import './campaigns.css'
 import { CartProvider } from './features/cart/CartContext.jsx'
 import { AuthProvider } from './features/auth/AuthContext.jsx'
 import { CampaignSealPage } from './features/campaigns/CampaignSealPage.jsx'
@@ -22,8 +22,11 @@ const campaignPage = window.location.pathname === '/dralfredo'
     ? <CampaignSealPage campaign={CAMPAIGNS.marlonreis} />
     : window.location.pathname === '/nathanbarbearia'
       ? <CampaignSealPage campaign={CAMPAIGNS.nathanbarbearia} />
+    : window.location.pathname === '/portalnoticiasbahia'
+      ? <CampaignSealPage campaign={CAMPAIGNS.portalnoticiasbahia} />
     : null
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>{campaignPage || <AuthProvider><CartProvider><App /></CartProvider></AuthProvider>}</React.StrictMode>,
 )
+

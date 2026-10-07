@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { campaignService } from "../../services/campaignService.js";
 import { TrisoLogo } from "../../components/TrisoLogo.jsx";
 import { CAMPAIGNS } from "./campaigns.js";
@@ -15,6 +15,30 @@ const loadImage = (source) =>
   });
 
 function drawCampaignFrame(context, width, height, campaign) {
+  if (campaign.brandPage) {
+    context.save();
+    context.fillStyle = campaign.theme.deep;
+    context.fillRect(0, 0, width, height);
+    context.fillStyle = campaign.theme.primary;
+    context.fillRect(0, height * 0.68, width, height * 0.32);
+    context.fillStyle = campaign.theme.accent;
+    context.fillRect(width * 0.07, height * 0.07, width * 0.86, height * 0.025);
+    context.fillStyle = "#fff";
+    context.font = `900 ${Math.round(width * 0.09)}px Arial`;
+    context.fillText("PORTAL", width * 0.08, height * 0.25);
+    context.fillStyle = campaign.theme.accent;
+    context.font = `900 ${Math.round(width * 0.12)}px Arial`;
+    context.fillText("NOTÍCIAS", width * 0.08, height * 0.38);
+    context.fillStyle = "#fff";
+    context.font = `800 ${Math.round(width * 0.075)}px Arial`;
+    context.fillText("BAHIA", width * 0.08, height * 0.49);
+    context.font = `800 ${Math.round(width * 0.045)}px Arial`;
+    context.fillText("EU FAÇO PARTE", width * 0.08, height * 0.78);
+    context.font = `900 ${Math.round(width * 0.065)}px Arial`;
+    context.fillText("DA COMUNIDADE", width * 0.08, height * 0.87);
+    context.restore();
+    return;
+  }
   context.save();
   context.strokeStyle = "#ffda20";
   context.lineWidth = Math.max(20, width * 0.025);
@@ -218,7 +242,7 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
       <section className="dralfredo-hero">
         <div className="dralfredo-intro">
           <span className="dralfredo-kicker">{campaign.copy.kicker}</span>
-          <h1>{isBrandPage ? <>Leve o estilo <em>Nathan</em> com você.</> : <>Mostre que você apoia <em>{campaign.name}.</em></>}</h1>
+          <h1>{isBrandPage ? <>Faça parte do <em>{campaign.name}.</em></> : <>Mostre que você apoia <em>{campaign.name}.</em></>}</h1>
           {!isBrandPage && <div className="dralfredo-candidate-number">
             <span>DEPUTADO<br />FEDERAL</span>
             <b>{campaign.number}</b>
@@ -234,10 +258,10 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
         </div>
 
         <div className="dralfredo-maker">
-          {photo && <fieldset className="dralfredo-formats">
+          {photo && <fieldset className="campaign-formats">
             <legend>Onde você quer aparecer?</legend>
-            <p className="dralfredo-format-intro">Escolha o espaço onde a sua foto vai ser publicada.</p>
-            <div className="dralfredo-format-options">
+            <p className="campaign-format-intro">Escolha o espaço onde a sua foto vai ser publicada.</p>
+            <div className="campaign-format-options">
               {SEAL_FORMATS.map((option) => <label key={option.id} data-format={option.id}>
                 <input type="radio" name="seal-format" checked={format.id === option.id} onChange={() => { setFormat(option); setZoom(1); setPosition({ x: 0, y: 0 }); }} />
                 <span><i aria-hidden="true" /><b>{option.label}</b><small>{option.hint.split(" · ")[0]}</small></span>
@@ -271,7 +295,7 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
           </div>}
           {error && <p className="dralfredo-error">{error}</p>}
           <button className="dralfredo-download" type="button" disabled={!photo || creating} onClick={createAndDownload}>
-            {creating ? "Montando seu selo..." : isBrandPage ? "Criar meu selo Nathan" : "Criar meu selo de apoio"}
+            {creating ? "Montando seu selo..." : isBrandPage ? `Criar meu selo ${campaign.name}` : "Criar meu selo de apoio"}
           </button>
         </div>
       </section>
@@ -287,7 +311,7 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
         <div className="dralfredo-thanks-backdrop" role="presentation">
           <section className="dralfredo-thanks" role="dialog" aria-modal="true" aria-labelledby="dralfredo-thanks-title">
             <button type="button" onClick={() => setThanksOpen(false)} aria-label="Fechar">×</button>
-            <span>{isBrandPage ? "SELO CRIADO · NATHAN BARBEARIA" : `APOIO REGISTRADO · ${campaign.number}`}</span>
+            <span>{isBrandPage ? `SELO CRIADO · ${campaign.name.toUpperCase()}` : `APOIO REGISTRADO · ${campaign.number}`}</span>
             <h2 id="dralfredo-thanks-title">{campaign.copy.thanks}</h2>
             <p>Seu selo está pronto. Baixe ou compartilhe quando quiser.</p>
             {!isBrandPage && <div className="dralfredo-thanks-number"><span>DEPUTADO<br />FEDERAL</span><b>{campaign.number}</b></div>}
@@ -304,3 +328,4 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
     </main>
   );
 }
+
