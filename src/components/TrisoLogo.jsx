@@ -5,7 +5,7 @@ export function TrisoLogo({ className = "", dark = false, large = false, light =
       href="/"
       aria-label="Triso Studio, página inicial"
     >
-      <img src={light ? "/Triso/logo-Branca.png" : "/Triso/logo-triso.png"} alt="Triso Studio" />
+      <img src="/Triso/logo-Branca.png" alt="Triso Studio" />
     </a>
   );
 }

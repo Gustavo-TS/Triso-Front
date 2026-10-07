@@ -131,8 +131,10 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
   }, [photo, zoom, position, campaign, format]);
 
   const supportText = useMemo(
-    () => `${downloads} ${downloads === 1 ? "apoio registrado" : "apoios registrados"}`,
-    [downloads],
+    () => campaign.id === "triso"
+      ? `${downloads} ${downloads === 1 ? "selo criado" : "selos criados"}`
+      : `${downloads} ${downloads === 1 ? "apoio registrado" : "apoios registrados"}`,
+    [downloads, campaign.id],
   );
 
   const selectPhoto = (event) => {
@@ -248,6 +250,11 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
             <b>{campaign.number}</b>
           </div>}
           <p>{campaign.copy.description}</p>
+          {campaign.id === "triso" && <ol className="dralfredo-howto">
+            <li><b>1</b><span><strong>Escolha uma foto</strong><small>Toque na prévia ao lado e envie uma imagem.</small></span></li>
+            <li><b>2</b><span><strong>Ajuste o tamanho e a posição</strong><small>Aumente ou reduza a foto no controle Zoom. Depois mova para os lados ou para cima e baixo até encaixar no selo.</small></span></li>
+            <li><b>3</b><span><strong>Crie e compartilhe</strong><small>Toque no botão para gerar, baixar ou compartilhar.</small></span></li>
+          </ol>}
           <div className="dralfredo-counter" aria-live="polite">
             <span className="dralfredo-counter-label">{isBrandPage ? "SELOS DA COMUNIDADE" : "SELOS CRIADOS POR APOIADORES"}</span>
             <b>{String(downloads).padStart(4, "0")}</b>
@@ -259,14 +266,15 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
 
         <div className="dralfredo-maker">
           {photo && <fieldset className="campaign-formats">
-            <legend>Onde você quer aparecer?</legend>
-            <p className="campaign-format-intro">Escolha o espaço onde a sua foto vai ser publicada.</p>
+            <legend>{campaign.id === "triso" ? "Um selo para cada canal" : "Onde você quer aparecer?"}</legend>
+            <p className="campaign-format-intro">{campaign.id === "triso" ? "O site pode entregar o selo no tamanho certo para cada rede. Assim, a pessoa cria uma imagem pronta para publicar onde sua marca está presente." : "Escolha o espaço onde a sua foto vai ser publicada."}</p>
             <div className="campaign-format-options">
               {SEAL_FORMATS.map((option) => <label key={option.id} data-format={option.id}>
                 <input type="radio" name="seal-format" checked={format.id === option.id} onChange={() => { setFormat(option); setZoom(1); setPosition({ x: 0, y: 0 }); }} />
                 <span><i aria-hidden="true" /><b>{option.label}</b><small>{option.hint.split(" · ")[0]}</small></span>
               </label>)}
             </div>
+            {campaign.id === "triso" && <p className="campaign-format-selected"><b>Como funciona:</b> a pessoa escolhe o formato, envia a foto e recebe uma arte pronta para o perfil, feed, Stories ou status.</p>}
           </fieldset>}
           <input ref={previewInputRef} className="dralfredo-preview-input" type="file" accept="image/*" onChange={selectPhoto} />
           <div
@@ -286,7 +294,8 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
           </div>
           <p className="dralfredo-upload-hint">{photo ? "A prévia acima mostra como sua foto ficará no formato selecionado." : "Toque na imagem e escolha uma foto para criar seu selo."}</p>
           {photo && <div className="dralfredo-photo-adjustments">
-            <div className="dralfredo-adjustments-head"><b>Ajuste de posição</b><button type="button" onClick={() => { setZoom(1); setPosition({ x: 0, y: 0 }); }}>Centralizar</button></div>
+            <div className="dralfredo-adjustments-head"><b>Ajuste sua foto no selo</b><button type="button" onClick={() => { setZoom(1); setPosition({ x: 0, y: 0 }); }}>Voltar ao centro</button></div>
+            <p className="dralfredo-adjustments-help">Use o Zoom para deixar a foto maior ou menor. Os controles de posição ajudam a escolher exatamente qual parte da imagem aparece.</p>
             <label>Zoom <input type="range" min="0.25" max="2.5" step="0.01" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} /></label>
             <div className="dralfredo-position-controls">
               <label>Horizontal <input type="range" min="-100" max="100" value={position.x} onChange={(event) => setPosition((current) => ({ ...current, x: Number(event.target.value) }))} /></label>
