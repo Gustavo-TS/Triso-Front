@@ -28,6 +28,7 @@ import {
 } from "./features/auth/AuthContext.jsx";
 import { SiteHeader } from "./components/SiteHeader.jsx";
 import { TrisoLogo } from "./components/TrisoLogo.jsx";
+import { SalesTemplatePage } from "./features/sales/SalesTemplatePage.jsx";
 import { CampaignSealPage } from "./features/campaigns/CampaignSealPage.jsx";
 import { CAMPAIGNS } from "./features/campaigns/campaigns.js";
 
@@ -5869,7 +5870,8 @@ export default function App() {
   if (customerRoute === "/marlonreis") customerPage = <CampaignSealPage campaign={CAMPAIGNS.marlonreis} />;
   if (customerRoute === "/nathanbarbearia") customerPage = <CampaignSealPage campaign={CAMPAIGNS.nathanbarbearia} />;
   if (customerRoute === "/portalnoticiasbahia") customerPage = <CampaignSealPage campaign={CAMPAIGNS.portalnoticiasbahia} />;
-  if (customerRoute === "/apresentacao") customerPage = <CampaignSealPage campaign={CAMPAIGNS.triso} />;
+  if (customerRoute === "/apresentacao") customerPage = <SalesTemplatePage />;
+  if (customerRoute === "/modelo-selo") customerPage = <CampaignSealPage campaign={CAMPAIGNS.triso} />;
   if (customerRoute === "/carrinho") customerPage = <CartPage />;
   if (customerRoute === "/entrar") customerPage = <UniversalAuthPage />;
   if (customerRoute === "/cadastro")

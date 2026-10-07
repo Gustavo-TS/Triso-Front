@@ -1,42 +1,42 @@
+import { useState } from "react";
 import { TrisoLogo } from "../../components/TrisoLogo.jsx";
 
 const steps = [
-  { number: "01", title: "Sua marca ganha um selo", text: "Criamos uma arte personalizada com seu logo, suas cores e a mensagem que você quer espalhar." },
-  { number: "02", title: "Você compartilha o link", text: "A Triso entrega uma página própria para sua campanha. É só enviar para clientes, apoiadores ou sua comunidade." },
-  { number: "03", title: "Cada pessoa cria o próprio selo", text: "O visitante escolhe uma foto, ajusta na moldura e baixa ou compartilha o selo pronto em poucos segundos." },
+  { number: "01", title: "Escolha sua foto", text: "A pessoa seleciona uma imagem no celular ou computador.", icon: "image" },
+  { number: "02", title: "Ajuste o enquadramento", text: "Ela posiciona a foto e controla o zoom para encaixar no selo.", icon: "crop" },
+  { number: "03", title: "Gere e compartilhe", text: "A arte fica pronta para baixar e publicar onde quiser.", icon: "share" },
 ];
+const manualItems = [
+  ["Materiais necessários", "Envie seu logotipo em boa qualidade, paleta de cores, nome da campanha, textos, referências visuais, redes sociais e o objetivo da ação."],
+  ["Criação e aprovação", "A Triso desenvolve a identidade do selo, configura sua página e envia uma prévia para aprovação antes da publicação."],
+  ["Publicação do site", "Depois da aprovação, sua campanha recebe um link exclusivo para ser divulgado em todos os seus canais."],
+  ["Divulgação da campanha", "Compartilhe o link na bio, Stories, WhatsApp, QR Codes e publicações. Use a mensagem pronta abaixo para convidar sua comunidade."],
+  ["Como orientar participantes", "A pessoa acessa o link, escolhe uma foto, ajusta o enquadramento, gera o selo e baixa ou compartilha a imagem final."],
+  ["Perguntas frequentes", "O site funciona no celular e no computador. Não é necessário instalar aplicativo nem criar uma conta para gerar o selo."],
+];
+const benefits = [["Identidade visual personalizada", "Selo desenvolvido com as cores e elementos da sua marca."], ["Página exclusiva", "Um endereço próprio para divulgar sua campanha."], ["Editor responsivo", "Experiência intuitiva em celulares e computadores."], ["Imagem pronta para compartilhar", "Resultado final preparado para baixar e publicar."]];
+const shareMessage = "Faça parte da nossa comunidade! Acesse o link, escolha sua foto e crie seu selo personalizado para compartilhar.";
+
+function Icon({ name }) {
+  const paths = { image: <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8" cy="9" r="1.5" /><path d="m4 17 5-5 3.5 3.5 2.5-2.5 4 4" /></>, crop: <><path d="M7 3v14a4 4 0 0 0 4 4h10" /><path d="M17 3H7" /><path d="M3 7h14a4 4 0 0 1 4 4v10" /></>, share: <><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.5-4.4M8.2 13.2l7.5 4.4" /></>, bolt: <path d="m13 2-9 12h7l-1 8 9-12h-7z" />, phone: <rect x="7" y="2.5" width="10" height="19" rx="2" />, download: <><path d="M12 3v12" /><path d="m7.5 10.5 4.5 4.5 4.5-4.5" /><path d="M4 21h16" /></>, arrow: <><path d="M5 12h13" /><path d="m13 6 6 6-6 6" /></>, external: <><path d="M14 4h6v6" /><path d="m20 4-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></> };
+  return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>;
+}
 
 export function SalesTemplatePage() {
-  return (
-    <main className="sales-page">
-      <header className="sales-header">
-        <TrisoLogo light />
-        <span>APRESENTAÇÃO COMERCIAL</span>
-      </header>
-
-      <section className="sales-hero">
-        <div className="sales-hero-copy">
-          <span className="sales-eyebrow">APRESENTAÇÃO DO SITE DE SELOS</span>
-          <h1>Transforme sua marca em um selo <em>que todo mundo pode usar.</em></h1>
-          <p>Um site personalizado para sua campanha, empresa ou comunidade. Seu público envia uma foto, cria o próprio selo e compartilha a sua mensagem.</p>
-          <a className="sales-button" href="#como-funciona">Ver como funciona <span>↓</span></a>
-        </div>
-        <div className="sales-hero-card" aria-label="Prévia de uma experiência personalizada">
-          <div className="sales-card-top"><span className="sales-dot" /> SELO DA SUA MARCA <b>AO VIVO</b></div>
-          <div className="sales-card-art"><i /><i /><strong>EU<br />FAÇO<br /><em>PARTE</em></strong></div>
-          <div className="sales-card-bottom"><small>ENVIE SUA FOTO · CRIE · COMPARTILHE</small><span>→</span></div>
-        </div>
-      </section>
-
-      <section className="sales-section" id="como-funciona">
-        <div className="sales-section-heading"><span className="sales-eyebrow">PASSO A PASSO</span><h2>Da sua identidade até o selo compartilhado pelo seu público.</h2></div>
-        <div className="sales-steps">{steps.map((step) => <article key={step.number} className="sales-step"><b>{step.number}</b><h3>{step.title}</h3><p>{step.text}</p></article>)}</div>
-      </section>
-
-      <section className="sales-proof"><div><span className="sales-eyebrow">POR QUE CRIAR UM SITE DE SELOS?</span><h2>Uma ação simples para fazer sua marca aparecer nas fotos e nas redes.</h2></div><div className="sales-proof-list"><span>↗ Selo com sua identidade visual</span><span>↗ Página exclusiva para sua campanha</span><span>↗ Upload e ajuste de foto pelo celular</span><span>↗ Download e compartilhamento do selo</span></div></section>
-
-      <section className="sales-cta"><span className="sales-eyebrow">AGORA IMAGINE O SEU</span><h2>Como seria o selo da sua marca?</h2><p>A Triso cria a arte, monta o site e deixa tudo pronto para o seu público participar, baixar e compartilhar.</p><a className="sales-button sales-button-light" href="mailto:oi@triso.com.br">Quero meu site de selos <span>↗</span></a></section>
-      <footer className="sales-footer"><span>Feito pela <b>TRISO STUDIO</b></span><a href="/">Conheça nosso site <span>→</span></a></footer>
-    </main>
-  );
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [openManual, setOpenManual] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const copyMessage = async () => { try { await navigator.clipboard.writeText(shareMessage); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { setCopied(false); } };
+  const closeMenu = () => setMenuOpen(false);
+  return <main className="sales-page">
+    <header className="sales-header"><div className="sales-header-inner"><TrisoLogo light /><nav className="sales-nav" aria-label="Navegação principal"><a href="#como-funciona">Como funciona</a><a href="#demonstracao">Demonstração</a><a href="#exemplos">Exemplos</a><a href="#manual">Manual</a><a href="#beneficios">Benefícios</a></nav><a className="sales-header-cta" href="mailto:oi@triso.com.br?subject=Solicitar%20meu%20site">Solicitar meu site <Icon name="arrow" /></a><button className="sales-menu-button" type="button" aria-label="Abrir menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}><i /><i /><i /></button></div><nav className={`sales-mobile-nav ${menuOpen ? "open" : ""}`} aria-label="Navegação mobile"><a href="#como-funciona" onClick={closeMenu}>Como funciona</a><a href="#demonstracao" onClick={closeMenu}>Demonstração</a><a href="#exemplos" onClick={closeMenu}>Exemplos</a><a href="#manual" onClick={closeMenu}>Manual</a><a href="#beneficios" onClick={closeMenu}>Benefícios</a><a href="mailto:oi@triso.com.br?subject=Solicitar%20meu%20site">Solicitar meu site</a></nav></header>
+    <section className="sales-hero" aria-labelledby="sales-title"><div className="sales-hero-copy"><span className="sales-kicker">SITES PERSONALIZADOS PARA SUA COMUNIDADE</span><h1 id="sales-title">Seu site de selos, pronto para <em>engajar sua comunidade.</em></h1><p>Transforme sua marca em uma experiência interativa. Seu público envia uma foto, aplica o selo personalizado da sua empresa e compartilha o resultado.</p><div className="sales-actions"><a className="sales-button sales-primary" href="mailto:oi@triso.com.br?subject=Solicitar%20meu%20site">Solicitar meu site <Icon name="arrow" /></a><a className="sales-button sales-secondary" href="#demonstracao">Ver demonstração <Icon name="arrow" /></a></div><div className="sales-hero-benefits"><span><i><Icon name="bolt" /></i><small>Página exclusiva<br />com sua identidade</small></span><span><i><Icon name="phone" /></i><small>Experiência otimizada<br />para celular</small></span><span><i><Icon name="download" /></i><small>Imagem pronta<br />para compartilhar</small></span></div></div><div className="sales-hero-result" aria-label="Exemplo de selo personalizado"><div className="sales-result-glow" /><div className="sales-result-photo"><img src="/Triso/Apresentacao/garoto_base.png" alt="Pessoa sorrindo em uma foto" /><img src="/Triso/Apresentacao/selo_triso.png" alt="Selo oficial da Triso Studio aplicado à foto" /></div><span className="sales-floating-card sales-floating-left">Sua marca<br /><b>em destaque</b></span><span className="sales-floating-card sales-floating-right"><Icon name="phone" /> Experiência<br />completa no celular</span></div></section>
+    <section className="sales-demo" id="demonstracao" aria-labelledby="demo-title"><div className="sales-demo-copy"><span className="sales-kicker">PRÉVIA DO SITE</span><h2 id="demo-title">Veja como seu público vai usar.</h2><p>Experimente o site de selos da Triso Studio diretamente nesta página.</p><a className="sales-inline-link" href="/modelo-selo" target="_blank" rel="noreferrer">Abrir demonstração completa <Icon name="external" /></a></div><div className="sales-browser"><div className="sales-browser-bar"><span className="sales-browser-dots"><i /><i /><i /></span><span className="sales-browser-url">triso.studio.br/seu-selo</span><a href="/modelo-selo" target="_blank" rel="noreferrer" aria-label="Abrir demonstração em tela cheia"><Icon name="external" /></a></div><div className="sales-browser-viewport"><iframe src="/modelo-selo" title="Editor demonstrativo de selos Triso" loading="lazy" scrolling="auto" /></div></div></section>
+    <section className="sales-before-after" id="exemplos" aria-labelledby="comparison-title"><div className="sales-before-copy"><span className="sales-kicker">EXEMPLO DE RESULTADO</span><h2 id="comparison-title">Da foto original ao selo personalizado.</h2><p>Uma imagem comum se transforma em uma peça da sua campanha em poucos segundos.</p></div><div className="sales-comparison"><article><div className="sales-photo"><img src="/Triso/Apresentacao/garoto_base.png" alt="Foto original do modelo" /></div><b>Foto original</b></article><span className="sales-comparison-arrow" aria-hidden="true"><Icon name="arrow" /></span><article><div className="sales-photo"><img src="/Triso/Apresentacao/garoto_base.png" alt="Foto do modelo com selo aplicado" /><img className="sales-photo-seal" src="/Triso/Apresentacao/selo_triso.png" alt="" /></div><b>Foto com selo</b></article></div></section>
+    <section className="sales-steps-section" id="como-funciona" aria-labelledby="steps-title"><div className="sales-section-head"><span className="sales-kicker">COMO FUNCIONA</span><h2 id="steps-title">Uma experiência simples para quem participa.</h2></div><div className="sales-steps">{steps.map(step => <article className="sales-step" key={step.number}><span className="sales-step-number">{step.number}</span><i><Icon name={step.icon} /></i><h3>{step.title}</h3><p>{step.text}</p></article>)}</div></section>
+    <section className="sales-manual" id="manual" aria-labelledby="manual-title"><div className="sales-section-head"><span className="sales-kicker">MANUAL DA EMPRESA</span><h2 id="manual-title">Seu guia para lançar uma campanha de selos.</h2></div><div className="sales-manual-list">{manualItems.map(([title, text], index) => <article className={`sales-manual-item ${openManual === index ? "open" : ""}`} key={title}><button type="button" onClick={() => setOpenManual(openManual === index ? -1 : index)} aria-expanded={openManual === index}><span>{String(index + 1).padStart(2, "0")}</span><strong>{title}</strong><b aria-hidden="true">+</b></button>{openManual === index && <div className="sales-manual-content"><p>{text}</p>{index === 3 && <div className="sales-copy-box"><q>{shareMessage}</q><button type="button" onClick={copyMessage} aria-live="polite">{copied ? "Mensagem copiada" : "Copiar mensagem"}</button></div>}</div>}</article>)}</div></section>
+    <section className="sales-benefits" id="beneficios" aria-labelledby="benefits-title"><div className="sales-section-head"><span className="sales-kicker">BENEFÍCIOS</span><h2 id="benefits-title">Tudo para colocar sua comunidade em movimento.</h2></div><div className="sales-benefit-cards">{benefits.map(([title, text], index) => <article key={title}><span>{String(index + 1).padStart(2, "0")}</span><h3>{title}</h3><p>{text}</p></article>)}</div></section>
+    <section className="sales-cta"><span className="sales-kicker">PRÓXIMO PASSO</span><h2>Pronto para colocar sua comunidade em destaque?</h2><p>Criamos o selo e a página personalizada para sua marca. Você divulga o link e seu público participa.</p><div className="sales-actions sales-actions-center"><a className="sales-button sales-primary" href="mailto:oi@triso.com.br?subject=Solicitar%20meu%20site">Solicitar meu site <Icon name="arrow" /></a><a className="sales-button sales-secondary" href="/modelo-selo">Experimentar demonstração <Icon name="external" /></a></div></section>
+    <footer className="sales-footer"><TrisoLogo light /><span>© 2026 Triso Studio</span><a href="mailto:oi@triso.com.br">oi@triso.com.br</a></footer>
+  </main>;
 }
