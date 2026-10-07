@@ -20,6 +20,8 @@ const campaignPage = window.location.pathname === '/dralfredo'
   ? <CampaignSealPage campaign={CAMPAIGNS.dralfredo} />
   : window.location.pathname === '/marlonreis'
     ? <CampaignSealPage campaign={CAMPAIGNS.marlonreis} />
+    : window.location.pathname === '/nathanbarbearia'
+      ? <CampaignSealPage campaign={CAMPAIGNS.nathanbarbearia} />
     : null
 
 createRoot(document.getElementById('root')).render(

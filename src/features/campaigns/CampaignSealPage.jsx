@@ -53,6 +53,7 @@ function composeSelo(person, template, zoom, position, campaign, format) {
 export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
   const [format, setFormat] = useState(SEAL_FORMATS[0]);
   const [finalFormat, setFinalFormat] = useState(SEAL_FORMATS[0]);
+  const isBrandPage = campaign.brandPage;
   const [photo, setPhoto] = useState("");
   const [downloads, setDownloads] = useState(0);
   const [creating, setCreating] = useState(false);
@@ -211,20 +212,20 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
     <main className={`dralfredo-page campaign-${campaign.id}`} style={campaignStyle}>
       <header className="dralfredo-header">
         <TrisoLogo className="dralfredo-brand" light />
-        <span>Uma iniciativa de apoio</span>
+        <span>{isBrandPage ? "SELO DA COMUNIDADE" : "Uma iniciativa de apoio"}</span>
       </header>
 
       <section className="dralfredo-hero">
         <div className="dralfredo-intro">
           <span className="dralfredo-kicker">{campaign.copy.kicker}</span>
-          <h1>Mostre que você apoia <em>{campaign.name}.</em></h1>
-          <div className="dralfredo-candidate-number">
+          <h1>{isBrandPage ? <>Leve o estilo <em>Nathan</em> com você.</> : <>Mostre que você apoia <em>{campaign.name}.</em></>}</h1>
+          {!isBrandPage && <div className="dralfredo-candidate-number">
             <span>DEPUTADO<br />FEDERAL</span>
             <b>{campaign.number}</b>
-          </div>
+          </div>}
           <p>{campaign.copy.description}</p>
           <div className="dralfredo-counter" aria-live="polite">
-            <span className="dralfredo-counter-label">SELOS CRIADOS POR APOIADORES</span>
+            <span className="dralfredo-counter-label">{isBrandPage ? "SELOS DA COMUNIDADE" : "SELOS CRIADOS POR APOIADORES"}</span>
             <b>{String(downloads).padStart(4, "0")}</b>
             <span className="dralfredo-counter-copy">{supportText}</span>
           </div>
@@ -270,7 +271,7 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
           </div>}
           {error && <p className="dralfredo-error">{error}</p>}
           <button className="dralfredo-download" type="button" disabled={!photo || creating} onClick={createAndDownload}>
-            {creating ? "Montando sua imagem..." : "Criar meu selo de apoio"}
+            {creating ? "Montando seu selo..." : isBrandPage ? "Criar meu selo Nathan" : "Criar meu selo de apoio"}
           </button>
         </div>
       </section>
@@ -286,10 +287,10 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
         <div className="dralfredo-thanks-backdrop" role="presentation">
           <section className="dralfredo-thanks" role="dialog" aria-modal="true" aria-labelledby="dralfredo-thanks-title">
             <button type="button" onClick={() => setThanksOpen(false)} aria-label="Fechar">×</button>
-            <span>APOIO REGISTRADO · {campaign.number}</span>
+            <span>{isBrandPage ? "SELO CRIADO · NATHAN BARBEARIA" : `APOIO REGISTRADO · ${campaign.number}`}</span>
             <h2 id="dralfredo-thanks-title">{campaign.copy.thanks}</h2>
-            <p>Seu selo está pronto.</p>
-            <div className="dralfredo-thanks-number"><span>DEPUTADO<br />FEDERAL</span><b>{campaign.number}</b></div>
+            <p>Seu selo está pronto. Baixe ou compartilhe quando quiser.</p>
+            {!isBrandPage && <div className="dralfredo-thanks-number"><span>DEPUTADO<br />FEDERAL</span><b>{campaign.number}</b></div>}
             {finalSeloUrl && <img className="dralfredo-thanks-preview" src={finalSeloUrl} alt="Seu selo de apoio pronto" />}
             <div className="dralfredo-thanks-actions"><button type="button" onClick={saveSelo}>Baixar meu selo</button><button type="button" onClick={shareSelo} disabled={sharing}>{sharing ? "Abrindo..." : "Compartilhar"}</button></div>
             <a className="dralfredo-thanks-instagram" href={`https://www.instagram.com/${campaign.instagram}`} target="_blank" rel="noreferrer">Acompanhar @{campaign.instagram}</a>

@@ -39,6 +39,21 @@ export const CAMPAIGNS = {
       actionHover: "#083892",
     },
   },
+  nathanbarbearia: {
+    id: "nathanbarbearia",
+    name: "Nathan Barbearia",
+    number: "",
+    instagram: "nathanbarbearia",
+    templateUrl: "/NathanBarbearia/nathanBarbearia.jpeg",
+    trackingEnabled: false,
+    brandPage: true,
+    copy: {
+      kicker: "SELO OFICIAL · NATHAN BARBEARIA",
+      description: "Escolha uma foto sua e crie um selo exclusivo para mostrar que você faz parte da nossa comunidade.",
+      thanks: "Agora você faz parte do time Nathan.",
+    },
+    theme: { primary: "#171717", deep: "#050505", accent: "#c99a55", action: "#c99a55", actionHover: "#e0b875" },
+  },
 };
 
 export const getCampaign = (id) => CAMPAIGNS[id];
