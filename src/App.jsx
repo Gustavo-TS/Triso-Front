@@ -28,7 +28,7 @@ import {
 } from "./features/auth/AuthContext.jsx";
 import { SiteHeader } from "./components/SiteHeader.jsx";
 import { TrisoLogo } from "./components/TrisoLogo.jsx";
-import { SalesTemplatePage } from "./features/sales/SalesTemplatePage.jsx";
+import { PresentationHomePage, SalesTemplatePage, PartyPresentationPage } from "./features/sales/SalesTemplatePage.jsx";
 import { CampaignSealPage } from "./features/campaigns/CampaignSealPage.jsx";
 import { CAMPAIGNS } from "./features/campaigns/campaigns.js";
 import { PartySealPage } from "./features/events/PartySealPage.jsx";
@@ -5883,7 +5883,9 @@ export default function App() {
   if (customerRoute === "/portalnoticiasbahia") customerPage = <CampaignSealPage campaign={CAMPAIGNS.portalnoticiasbahia} />;
   if (customerRoute === "/inac") customerPage = <CampaignSealPage campaign={CAMPAIGNS.inac} />;
   if (customerRoute === "/15-anos-isabella") customerPage = <PartySealPage event={EVENTS.isabella15} />;
-  if (customerRoute === "/apresentacao") customerPage = <SalesTemplatePage />;
+  if (customerRoute === "/apresentacao") customerPage = <PresentationHomePage />;
+  if (customerRoute === "/apresentacao-selo") customerPage = <SalesTemplatePage />;
+  if (customerRoute === "/apresentacao-festas") customerPage = <PartyPresentationPage />;
   if (customerRoute === "/modelo-selo") customerPage = <CampaignSealPage campaign={CAMPAIGNS.triso} />;
   if (customerRoute === "/carrinho") customerPage = <CartPage />;
   if (customerRoute === "/entrar") customerPage = <UniversalAuthPage />;

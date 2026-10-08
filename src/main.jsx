@@ -18,7 +18,7 @@ import { CampaignSealPage } from './features/campaigns/CampaignSealPage.jsx'
 import { CAMPAIGNS } from './features/campaigns/campaigns.js'
 import { PartySealPage } from './features/events/PartySealPage.jsx'
 import { EVENTS } from './features/events/events.js'
-import { SalesTemplatePage } from './features/sales/SalesTemplatePage.jsx'
+import { PresentationHomePage, SalesTemplatePage, PartyPresentationPage } from './features/sales/SalesTemplatePage.jsx'
 
 const standaloneCampaigns = {
   '/dralfredo': CAMPAIGNS.dralfredo,
@@ -34,7 +34,11 @@ const standalonePage = standaloneCampaigns[path]
   : path === EVENTS.isabella15.route
     ? <PartySealPage event={EVENTS.isabella15} />
     : path === '/apresentacao'
-      ? <SalesTemplatePage />
+      ? <PresentationHomePage />
+      : path === '/apresentacao-selo'
+        ? <SalesTemplatePage />
+      : path === '/apresentacao-festas'
+        ? <PartyPresentationPage />
       : null
 
 createRoot(document.getElementById('root')).render(

@@ -275,13 +275,19 @@ export function PartySealPage({ event }) {
   const chooseCount = (nextCount) => {
     setCount(nextCount);
     setPhotos((current) => Array.from({ length: nextCount }, (_, index) => current[index] || ""));
+    setFinalBlob(null);
+    setThanksOpen(false);
     setMessage("");
   };
 
   const selectPhoto = (index, file) => {
     if (!file?.type.startsWith("image/")) { setMessage("Escolha uma imagem em JPG, PNG ou WEBP."); return; }
     const reader = new FileReader();
-    reader.onload = () => setPhotos((current) => current.map((photo, position) => position === index ? String(reader.result) : photo));
+    reader.onload = () => {
+      setPhotos((current) => current.map((photo, position) => position === index ? String(reader.result) : photo));
+      setFinalBlob(null);
+      setThanksOpen(false);
+    };
     reader.readAsDataURL(file);
     setMessage("");
   };
@@ -299,7 +305,7 @@ export function PartySealPage({ event }) {
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
       setFinalBlob(blob);
       setPreview(canvas.toDataURL("image/png"));
-      setMessage("Sua lembrança está pronta para baixar.");
+      setMessage("");
       setThanksOpen(true);
     } catch {
       setMessage("Não foi possível montar agora. Tente novamente.");
@@ -320,6 +326,15 @@ export function PartySealPage({ event }) {
     setThanksOpen(false);
     setMessage("");
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const replaceLastPhoto = () => {
+    const lastPhotoIndex = photos.reduce((lastIndex, photo, index) => photo ? index : lastIndex, -1);
+    if (lastPhotoIndex < 0) return;
+    setPhotos((current) => current.map((photo, index) => index === lastPhotoIndex ? "" : photo));
+    setFinalBlob(null);
+    setMessage("");
+    window.setTimeout(() => inputs.current[lastPhotoIndex]?.click(), 0);
   };
 
   const share = async () => {
@@ -346,16 +361,17 @@ export function PartySealPage({ event }) {
             {landscapeHint && <small>Para este quadro, tire a foto com o celular deitado.</small>}
             {landscapeHint && <b className="party-orientation-note">Antes de tocar na prévia: use o celular deitado para esta foto.</b>}
             <small>Toque na prévia abaixo para adicionar a foto {nextPhotoIndex + 1}. Faltam {remaining} {remaining === 1 ? "foto" : "fotos"}.</small>
-          </div> : <div className="party-upload party-upload-complete"><span>{count} {count === 1 ? "foto enviada" : "fotos enviadas"}</span><b>Montagem pronta para criar.</b></div>}
+          </div> : null}
+          {photos.some(Boolean) && <button type="button" className="party-replace-photo" onClick={replaceLastPhoto}>← Voltar foto</button>}
         </div>
         {message && <p className="party-message">{message}</p>}
-        {nextPhotoIndex < 0 && <div className="party-actions"><button type="button" disabled={creating} onClick={generate}>{creating ? "Preparando a festa..." : "Criar minha lembrança"}</button>{finalBlob && <button type="button" className="secondary" onClick={download}>Baixar lembrança</button>}</div>}
+        {nextPhotoIndex < 0 && <div className="party-actions"><button type="button" disabled={creating} onClick={generate}>{creating ? "Preparando a festa..." : "Criar minha lembrança"}</button></div>}
       </div>
       <div className={`party-preview ${nextPhotoIndex >= 0 ? "is-pending" : ""}`} role={nextPhotoIndex >= 0 ? "button" : undefined} tabIndex={nextPhotoIndex >= 0 ? 0 : undefined} onClick={openPhotoPicker} onKeyDown={(keyboardEvent) => { if (nextPhotoIndex >= 0 && (keyboardEvent.key === "Enter" || keyboardEvent.key === " ")) { keyboardEvent.preventDefault(); openPhotoPicker(); } }}><img src={preview} alt={`Prévia da lembrança com ${count} ${count === 1 ? "foto" : "fotos"}`} />{nextPhotoIndex >= 0 && <span>Toque no espaço da foto {nextPhotoIndex + 1}{landscapeHint && <strong>Use o celular deitado</strong>}<small>Faltam {remaining} {remaining === 1 ? "foto" : "fotos"}</small></span>}</div>
     </section>
     <footer className="dralfredo-footer"><span>Feito pela <b>TRISO STUDIO</b></span><a href="/">Conheça nosso site <span>→</span></a></footer>
     {creating && <div className="party-building" role="status" aria-live="polite"><div className="party-confetti" aria-hidden="true">{Array.from({ length: 28 }, (_, index) => <i key={index} style={{ "--item": index }} />)}</div><div className="party-balloon balloon-one" aria-hidden="true" /><div className="party-balloon balloon-two" aria-hidden="true" /><div className="party-building-card"><span>XV</span><h2>{["Separando suas fotos", "Dando brilho à lembrança", "Finalizando sua arte"][buildingStep]}</h2><p>{["Preparando cada momento para entrar na montagem.", "Aplicando a moldura e os detalhes da festa.", "Só mais um instante para sua lembrança ficar pronta."][buildingStep]}</p><ol><li className={buildingStep >= 0 ? "done" : ""}>Fotos</li><li className={buildingStep >= 1 ? "done" : ""}>Moldura</li><li className={buildingStep >= 2 ? "done" : ""}>Finalização</li></ol><div><i /><i /><i /></div></div></div>}
-    {thanksOpen && <div className="party-thanks-backdrop"><section className="party-thanks" role="dialog" aria-modal="true" aria-labelledby="party-thanks-title"><button type="button" onClick={() => setThanksOpen(false)} aria-label="Fechar">×</button><span>LEMBRANÇA PRONTA</span><h2 id="party-thanks-title">Que noite especial!</h2><p>Sua lembrança dos {event.name} está pronta para guardar e compartilhar.</p>{preview && <img src={preview} alt="Lembrança pronta" />}<div><button type="button" onClick={download}>Baixar lembrança</button><button type="button" onClick={restart}>Refazer</button></div></section></div>}
+    {thanksOpen && <div className="party-thanks-backdrop"><section className="party-thanks" role="dialog" aria-modal="true" aria-labelledby="party-thanks-title"><button type="button" onClick={() => setThanksOpen(false)} aria-label="Fechar">×</button><span>LEMBRANÇA PRONTA</span><h2 id="party-thanks-title">Que noite especial!</h2><p>Sua lembrança dos {event.name} está pronta para guardar e compartilhar.</p>{preview && <img src={preview} alt="Lembrança pronta" />}<div><button type="button" onClick={share}>{sharing ? "Compartilhando..." : "Compartilhar"}</button><button type="button" onClick={download}>Baixar lembrança</button><button type="button" onClick={restart}>Refazer</button></div></section></div>}
     {orientationModalOpen && <div className="party-orientation-backdrop" role="presentation"><section className="party-orientation-modal" role="dialog" aria-modal="true" aria-labelledby="party-orientation-title"><span aria-hidden="true">↔</span><h2 id="party-orientation-title">Tire essa foto com o celular deitado</h2><p>Para uma melhor experiência e um melhor enquadramento, vire o celular antes de escolher a foto.</p><button type="button" onClick={() => { setOrientationModalOpen(false); window.setTimeout(() => inputs.current[nextPhotoIndex]?.click(), 0); }}>Entendi, escolher foto</button></section></div>}
   </main>;
 }
