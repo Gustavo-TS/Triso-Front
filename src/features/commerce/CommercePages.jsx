@@ -463,7 +463,16 @@ export function CheckoutPage() {
   }, [cep, itemsKey, lines]);
 
   if (!lines.length) return <CartPage />;
-  const selectedQuote = quotes.find((quote) => quote.id === shippingQuoteId);
+  const pickupOption = {
+    id: "pickup",
+    carrier: "Retirada na loja",
+    service: "Retirada no local",
+    priceCents: 0,
+  };
+  const selectedQuote =
+    shippingQuoteId === pickupOption.id
+      ? pickupOption
+      : quotes.find((quote) => quote.id === shippingQuoteId);
   const selectSavedAddress = (selected) => {
     setSelectedAddressId(selected.id);
     setSaveAddress(false);
@@ -609,7 +618,7 @@ export function CheckoutPage() {
             <div className="shipping-quotes-heading">
               <span>ENTREGA</span>
               <h2>Escolha o frete</h2>
-              <small>Valores e prazos para o seu CEP</small>
+              <small>Escolha receber ou retirar seu pedido no local</small>
             </div>
             {quoting && (
               <div className="shipping-quote-loading">
@@ -642,6 +651,28 @@ export function CheckoutPage() {
                   </span>
                 </label>
               ))}
+            {!quoting && (
+              <label
+                className={`shipping-option ${shippingQuoteId === pickupOption.id ? "selected" : ""}`}
+              >
+                <input
+                  type="radio"
+                  name="shippingQuote"
+                  value={pickupOption.id}
+                  checked={shippingQuoteId === pickupOption.id}
+                  onChange={() => setShippingQuoteId(pickupOption.id)}
+                />
+                <i className="shipping-option-radio" />
+                <span className="shipping-option-copy">
+                  <b>Retirar na loja</b>
+                  <small>Sem frete · avisaremos quando estiver pronto</small>
+                </span>
+                <span className="shipping-option-price">
+                  <small>Frete</small>
+                  <strong>Grátis</strong>
+                </span>
+              </label>
+            )}
             {!quoting && cep.length === 8 && !quotes.length && (
               <p className="shipping-quote-empty">
                 Não há opções disponíveis para este CEP.
