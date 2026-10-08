@@ -63,3 +63,4 @@ html,body,#root{margin:0;min-height:100%}.dralfredo-counter-error{display:block;
 .party-preview{width:min(100%,520px);padding:8px}.party-preview img{display:block;width:100%;height:auto;max-height:none;object-fit:contain}@media(max-width:760px){.party-preview{width:min(100%,430px);padding:6px}.party-preview img{width:100%;height:auto}}
 .party-preview{width:min(100%,420px);padding:7px}.party-preview img{width:100%;height:auto;max-height:none}@media(max-width:760px){.party-preview{width:min(100%,350px);padding:6px}.party-preview img{width:100%;height:auto}}
 .party-orientation-note{display:block;margin-top:6px;color:#f7c969;font-size:11px;line-height:1.35}
+.party-preview.is-pending>span strong{display:block;margin-top:4px;color:#f7c969;font-size:11px;letter-spacing:.02em}
