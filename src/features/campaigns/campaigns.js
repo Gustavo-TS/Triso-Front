@@ -60,6 +60,12 @@ export const CAMPAIGNS = {
     copy: { kicker: "SELO OFICIAL · PORTAL NOTÍCIAS BAHIA", description: "Escolha uma foto sua e crie seu selo para mostrar que você acompanha as notícias da Bahia.", thanks: "Você faz parte da nossa comunidade." },
     theme: { primary: "#0756a8", deep: "#062b59", accent: "#f5c400", action: "#d62828", actionHover: "#b51f1f" },
   },
+  inac: {
+    id: "inac", name: "INAC", number: "", instagram: "naoaceitocorrupcao",
+    templateUrl: "/Inac/inac_selo.png", trackingEnabled: true, brandPage: true,
+    copy: { kicker: "SELO OFICIAL · INAC", description: "Escolha uma foto, crie seu selo e mostre que você faz parte de uma comunidade que não aceita corrupção.", thanks: "Seu selo INAC está pronto!" },
+    theme: { primary: "#252a2d", deep: "#111416", accent: "#f9c83b", action: "#2d3134", actionHover: "#111416" },
+  },
   triso: {
     id: "triso", name: "Triso Studio", number: "", instagram: "trisostudio3d",
     templateUrl: "/Triso/Apresentacao/selo_triso.png", trackingEnabled: true, brandPage: true,

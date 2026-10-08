@@ -31,6 +31,8 @@ import { TrisoLogo } from "./components/TrisoLogo.jsx";
 import { SalesTemplatePage } from "./features/sales/SalesTemplatePage.jsx";
 import { CampaignSealPage } from "./features/campaigns/CampaignSealPage.jsx";
 import { CAMPAIGNS } from "./features/campaigns/campaigns.js";
+import { PartySealPage } from "./features/events/PartySealPage.jsx";
+import { EVENTS } from "./features/events/events.js";
 
 const categories = CATEGORY_LABELS;
 const emptyProduct = CATALOG_OPTIONS.productDefaults;
@@ -5879,6 +5881,8 @@ export default function App() {
   if (customerRoute === "/marlonreis") customerPage = <CampaignSealPage campaign={CAMPAIGNS.marlonreis} />;
   if (customerRoute === "/nathanbarbearia") customerPage = <CampaignSealPage campaign={CAMPAIGNS.nathanbarbearia} />;
   if (customerRoute === "/portalnoticiasbahia") customerPage = <CampaignSealPage campaign={CAMPAIGNS.portalnoticiasbahia} />;
+  if (customerRoute === "/inac") customerPage = <CampaignSealPage campaign={CAMPAIGNS.inac} />;
+  if (customerRoute === "/15-anos-isabella") customerPage = <PartySealPage event={EVENTS.isabella15} />;
   if (customerRoute === "/apresentacao") customerPage = <SalesTemplatePage />;
   if (customerRoute === "/modelo-selo") customerPage = <CampaignSealPage campaign={CAMPAIGNS.triso} />;
   if (customerRoute === "/carrinho") customerPage = <CartPage />;
