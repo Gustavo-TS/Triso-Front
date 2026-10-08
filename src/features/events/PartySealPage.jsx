@@ -1,7 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TrisoLogo } from "../../components/TrisoLogo.jsx";
+import fitaIsabella1 from "../../assets/festas/isabella15/fita_isabella_1.png";
+import fitaIsabella2 from "../../assets/festas/isabella15/fita_isabella_2.png";
+import fitaIsabella3 from "../../assets/festas/isabella15/fita_isabella_3.png";
 
-const OUTPUT = { width: 1080, height: 1350 };
+const OUTPUT = { width: 1080, height: 1920 };
+const PARTY_TEMPLATES = {
+  1: fitaIsabella1,
+  2: fitaIsabella2,
+  3: fitaIsabella3,
+};
 const loadImage = (source) => new Promise((resolve, reject) => {
   const image = new Image();
   image.onload = () => resolve(image);
@@ -9,10 +17,11 @@ const loadImage = (source) => new Promise((resolve, reject) => {
   image.src = source;
 });
 
-const slotsFor = (count) => {
-  if (count === 1) return [{ x: 126, y: 300, width: 828, height: 760 }];
-  if (count === 2) return [{ x: 126, y: 290, width: 828, height: 355 }, { x: 126, y: 690, width: 828, height: 355 }];
-  return [{ x: 126, y: 275, width: 828, height: 230 }, { x: 126, y: 545, width: 828, height: 230 }, { x: 126, y: 815, width: 828, height: 230 }];
+const slotsFor = (count, width, height) => {
+  const makeSlot = (x, y, slotWidth, slotHeight) => ({ x: width * x, y: height * y, width: width * slotWidth, height: height * slotHeight });
+  if (count === 1) return [makeSlot(.18, .215, .71, .51)];
+  if (count === 2) return [makeSlot(.18, .22, .70, .22), makeSlot(.18, .47, .70, .22)];
+  return [makeSlot(.18, .20, .70, .18), makeSlot(.18, .405, .70, .18), makeSlot(.18, .61, .70, .18)];
 };
 
 function drawCover(context, image, slot) {
@@ -27,11 +36,31 @@ function drawCover(context, image, slot) {
   context.restore();
 }
 
-function drawPartyArt(images, count, event) {
+function drawPartyArt(images, count, event, template) {
   const canvas = document.createElement("canvas");
   canvas.width = OUTPUT.width;
   canvas.height = OUTPUT.height;
   const context = canvas.getContext("2d");
+  if (template) {
+    const scale = Math.max(canvas.width / template.width, canvas.height / template.height);
+    const templateWidth = template.width * scale;
+    const templateHeight = template.height * scale;
+    const offsetX = (canvas.width - templateWidth) / 2;
+    const offsetY = (canvas.height - templateHeight) / 2;
+    context.drawImage(template, offsetX, offsetY, templateWidth, templateHeight);
+    const inset = Math.max(6, canvas.width * .012);
+    slotsFor(count, template.width, template.height).forEach((templateSlot, index) => {
+      if (!images[index]) return;
+      const slot = {
+        x: offsetX + templateSlot.x * scale,
+        y: offsetY + templateSlot.y * scale,
+        width: templateSlot.width * scale,
+        height: templateSlot.height * scale,
+      };
+      drawCover(context, images[index], { x: slot.x + inset, y: slot.y + inset, width: slot.width - inset * 2, height: slot.height - inset * 2 });
+    });
+    return canvas;
+  }
   const { deep, wine, pink, blush, gold } = event.palette;
   const gradient = context.createLinearGradient(0, 0, OUTPUT.width, OUTPUT.height);
   gradient.addColorStop(0, deep);
@@ -64,7 +93,7 @@ function drawPartyArt(images, count, event) {
   context.font = "italic 92px Georgia";
   context.fillText(event.shortName, OUTPUT.width / 2, 282);
 
-  slotsFor(count).forEach((slot, index) => {
+  slotsFor(count, canvas.width, canvas.height).forEach((slot, index) => {
     context.fillStyle = "rgba(255,255,255,.13)";
     context.fillRect(slot.x, slot.y, slot.width, slot.height);
     if (images[index]) drawCover(context, images[index], slot);
@@ -104,14 +133,13 @@ export function PartySealPage({ event }) {
   const [thanksOpen, setThanksOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const inputs = useRef([]);
-  const optionPreviews = useMemo(() => [1, 2, 3].map((option) => drawPartyArt([], option, event).toDataURL("image/png")), [event]);
   const nextPhotoIndex = photos.findIndex((photo) => !photo);
   const remaining = photos.filter((photo) => !photo).length;
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all(photos.map((photo) => photo ? loadImage(photo).catch(() => null) : null)).then((images) => {
-      if (!cancelled) setPreview(drawPartyArt(images, count, event).toDataURL("image/png"));
+    Promise.all([Promise.all(photos.map((photo) => photo ? loadImage(photo).catch(() => null) : null)), loadImage(PARTY_TEMPLATES[count]).catch(() => null)]).then(([images, template]) => {
+      if (!cancelled) setPreview(drawPartyArt(images, count, event, template).toDataURL("image/png"));
     });
     return () => { cancelled = true; };
   }, [photos, count, event]);
@@ -138,8 +166,8 @@ export function PartySealPage({ event }) {
     try {
       window.setTimeout(() => setBuildingStep(1), 480);
       window.setTimeout(() => setBuildingStep(2), 1040);
-      const [images] = await Promise.all([Promise.all(photos.map(loadImage)), new Promise((resolve) => window.setTimeout(resolve, 1800))]);
-      const canvas = drawPartyArt(images, count, event);
+      const [[images, template]] = await Promise.all([Promise.all([Promise.all(photos.map(loadImage)), loadImage(PARTY_TEMPLATES[count]).catch(() => null)]), new Promise((resolve) => window.setTimeout(resolve, 1800))]);
+      const canvas = drawPartyArt(images, count, event, template);
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
       setFinalBlob(blob);
       setPreview(canvas.toDataURL("image/png"));
@@ -178,13 +206,13 @@ export function PartySealPage({ event }) {
   };
 
   return <main className="party-page">
-    <header className="party-header"><TrisoLogo className="party-brand" light /><b>LEMBRANÇA DIGITAL</b></header>
+    <header className="dralfredo-header"><TrisoLogo className="dralfredo-brand" light /><span>LEMBRANÇA DIGITAL</span></header>
     <section className="party-layout">
       <div className="party-copy">
         <p>FESTA DE 15 ANOS</p><h1>Eu fui aos 15 da <em>{event.shortName}.</em></h1>
-        <span>Escolha quantas fotos farão parte da sua lembrança. A montagem já nasce no formato certo para compartilhar.</span>
+        <span>Escolha quantas fotos farão parte da sua lembrança. Todas as opções saem no formato de tela cheia para Stories e Reels.</span>
         <div className="party-counts" role="group" aria-label="Quantidade de fotos">
-          {[1, 2, 3].map((option, index) => <button key={option} type="button" className={count === option ? "active" : ""} onClick={() => chooseCount(option)}><img src={optionPreviews[index]} alt={`Modelo com ${option} ${option === 1 ? "foto" : "fotos"}`} /><b>{option}</b><small>{option === 1 ? "foto" : "fotos"}</small></button>)}
+          {[1, 2, 3].map((option) => <button key={option} type="button" className={count === option ? "active" : ""} onClick={() => chooseCount(option)}><img src={PARTY_TEMPLATES[option]} alt={`Modelo com ${option} ${option === 1 ? "foto" : "fotos"}`} /><b>{option}</b><small>{option === 1 ? "foto" : "fotos"}</small></button>)}
         </div>
         <div className="party-uploads">
           {nextPhotoIndex >= 0 ? <div className="party-upload">
@@ -197,6 +225,7 @@ export function PartySealPage({ event }) {
       </div>
       <div className={`party-preview ${nextPhotoIndex >= 0 ? "is-pending" : ""}`} role={nextPhotoIndex >= 0 ? "button" : undefined} tabIndex={nextPhotoIndex >= 0 ? 0 : undefined} onClick={() => nextPhotoIndex >= 0 && inputs.current[nextPhotoIndex]?.click()} onKeyDown={(keyboardEvent) => { if (nextPhotoIndex >= 0 && (keyboardEvent.key === "Enter" || keyboardEvent.key === " ")) { keyboardEvent.preventDefault(); inputs.current[nextPhotoIndex]?.click(); } }}><img src={preview} alt={`Prévia da lembrança com ${count} ${count === 1 ? "foto" : "fotos"}`} />{nextPhotoIndex >= 0 && <span>Toque no espaço da foto {nextPhotoIndex + 1}<small>Faltam {remaining} {remaining === 1 ? "foto" : "fotos"}</small></span>}</div>
     </section>
+    <footer className="dralfredo-footer"><span>Feito pela <b>TRISO STUDIO</b></span><a href="/">Conheça nosso site <span>→</span></a></footer>
     {creating && <div className="party-building" role="status" aria-live="polite"><div className="party-confetti" aria-hidden="true">{Array.from({ length: 28 }, (_, index) => <i key={index} style={{ "--item": index }} />)}</div><div className="party-balloon balloon-one" aria-hidden="true" /><div className="party-balloon balloon-two" aria-hidden="true" /><div className="party-building-card"><span>XV</span><h2>{["Separando suas fotos", "Dando brilho à lembrança", "Finalizando sua arte"][buildingStep]}</h2><p>{["Preparando cada momento para entrar na montagem.", "Aplicando a moldura e os detalhes da festa.", "Só mais um instante para sua lembrança ficar pronta."][buildingStep]}</p><ol><li className={buildingStep >= 0 ? "done" : ""}>Fotos</li><li className={buildingStep >= 1 ? "done" : ""}>Moldura</li><li className={buildingStep >= 2 ? "done" : ""}>Finalização</li></ol><div><i /><i /><i /></div></div></div>}
     {thanksOpen && <div className="party-thanks-backdrop"><section className="party-thanks" role="dialog" aria-modal="true" aria-labelledby="party-thanks-title"><button type="button" onClick={() => setThanksOpen(false)} aria-label="Fechar">×</button><span>LEMBRANÇA PRONTA</span><h2 id="party-thanks-title">Que noite especial!</h2><p>Sua lembrança dos {event.name} está pronta para guardar e compartilhar.</p>{preview && <img src={preview} alt="Lembrança pronta" />}<div><button type="button" onClick={download}>Baixar lembrança</button><button type="button" onClick={restart}>Refazer</button></div></section></div>}
   </main>;
