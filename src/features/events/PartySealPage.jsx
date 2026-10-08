@@ -3,24 +3,121 @@ import { TrisoLogo } from "../../components/TrisoLogo.jsx";
 import fitaIsabella1 from "../../assets/festas/isabella15/fita_isabella_1.png";
 import fitaIsabella2 from "../../assets/festas/isabella15/fita_isabella_2.png";
 import fitaIsabella3 from "../../assets/festas/isabella15/fita_isabella_3.png";
+import fitaIsabella4 from "../../assets/festas/isabella15/fita_isabella_4.png";
 
 const OUTPUT = { width: 1080, height: 1920 };
 const PARTY_TEMPLATES = {
   1: fitaIsabella1,
   2: fitaIsabella2,
   3: fitaIsabella3,
+  4: fitaIsabella4,
 };
 const loadImage = (source) => new Promise((resolve, reject) => {
+  if (!source) return resolve(null);
   const image = new Image();
   image.onload = () => resolve(image);
   image.onerror = reject;
   image.src = source;
 });
 
+const p = (x, y) => ({ x, y });
+const photoCropCache = new WeakMap();
+const ISABELLA_LAYOUTS = {
+  one: { slots: [{ x: 98, y: 157, width: 745, height: 1143, rotation: 0 }] },
+  two: { slots: [
+    { x: 105, y: 161, width: 732, height: 573, rotation: 0 },
+    { x: 105, y: 804, width: 734, height: 468, rotation: 0 },
+  ] },
+  three: { slots: [
+    { x: 108, y: 179, width: 324, height: 541, rotation: 0 },
+    { x: 512, y: 180, width: 326, height: 539, rotation: 0 },
+    { x: 109, y: 776, width: 727, height: 494, rotation: 0 },
+  ] },
+  four: { slots: [
+    { x: 101, y: 169, width: 342, height: 550, rotation: 0 },
+    { x: 499, y: 169, width: 343, height: 550, rotation: 0 },
+    { x: 102, y: 782, width: 341, height: 486, rotation: 0 },
+    { x: 499, y: 782, width: 343, height: 486, rotation: 0 },
+  ] },
+};
+
+function drawIntoPolygon(context, image, polygon) {
+  const xs = polygon.map((point) => point.x);
+  const ys = polygon.map((point) => point.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  const width = Math.max(...xs) - x;
+  const height = Math.max(...ys) - y;
+  const crop = getPhotoCrop(image);
+  const scale = Math.max(width / crop.width, height / crop.height);
+  const drawWidth = crop.width * scale;
+  const drawHeight = crop.height * scale;
+  context.save();
+  context.beginPath();
+  context.moveTo(polygon[0].x, polygon[0].y);
+  polygon.slice(1).forEach((point) => context.lineTo(point.x, point.y));
+  context.closePath();
+  context.clip();
+  context.drawImage(image, crop.x, crop.y, crop.width, crop.height, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight);
+  context.restore();
+}
+
+function getPhotoCrop(image) {
+  if (photoCropCache.has(image)) return photoCropCache.get(image);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return { x: 0, y: 0, width: image.width, height: image.height };
+  context.drawImage(image, 0, 0);
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  const isDarkRow = (row) => {
+    let dark = 0;
+    for (let x = 0; x < canvas.width; x += 1) {
+      const offset = (row * canvas.width + x) * 4;
+      if (pixels[offset] < 28 && pixels[offset + 1] < 28 && pixels[offset + 2] < 28) dark += 1;
+    }
+    return dark / canvas.width > 0.94;
+  };
+  let top = 0;
+  let bottom = canvas.height - 1;
+  while (top < bottom && isDarkRow(top)) top += 1;
+  while (bottom > top && isDarkRow(bottom)) bottom -= 1;
+  const crop = { x: 0, y: top, width: canvas.width, height: bottom - top + 1 };
+  photoCropCache.set(image, crop);
+  return crop;
+}
+
+function drawIntoBox(context, image, box, scaleFactor = 1) {
+  const x = box.x * scaleFactor;
+  const y = box.y * scaleFactor;
+  const width = box.width * scaleFactor;
+  const height = box.height * scaleFactor;
+  const imageWidth = image.naturalWidth || image.width;
+  const imageHeight = image.naturalHeight || image.height;
+  const imageScale = Math.max(width / imageWidth, height / imageHeight);
+  const drawWidth = imageWidth * imageScale;
+  const drawHeight = imageHeight * imageScale;
+  context.save();
+  context.translate(x + width / 2, y + height / 2);
+  context.rotate(((box.rotation || 0) * Math.PI) / 180);
+  context.beginPath();
+  context.rect(-width / 2, -height / 2, width, height);
+  context.clip();
+  context.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+  context.restore();
+}
+
 const slotsFor = (count, width, height) => {
   const makeSlot = (x, y, slotWidth, slotHeight) => ({ x: width * x, y: height * y, width: width * slotWidth, height: height * slotHeight });
-  if (count === 1) return [makeSlot(.18, .215, .71, .51)];
+  if (count === 1) return [makeSlot(.18, .145, .64, .53)];
   if (count === 2) return [makeSlot(.18, .22, .70, .22), makeSlot(.18, .47, .70, .22)];
+  if (count === 4) return [
+    makeSlot(.12, .17, .36, .28),
+    makeSlot(.52, .17, .36, .28),
+    makeSlot(.12, .51, .36, .28),
+    makeSlot(.52, .51, .36, .28),
+  ];
   return [makeSlot(.18, .20, .70, .18), makeSlot(.18, .405, .70, .18), makeSlot(.18, .61, .70, .18)];
 };
 
@@ -47,18 +144,20 @@ function drawPartyArt(images, count, event, template) {
     const templateHeight = template.height * scale;
     const offsetX = (canvas.width - templateWidth) / 2;
     const offsetY = (canvas.height - templateHeight) / 2;
+    const measuredLayout = ISABELLA_LAYOUTS[{ 1: "one", 2: "two", 3: "three", 4: "four" }[count]] || null;
+    if (measuredLayout) {
+      measuredLayout.slots.forEach((slot, index) => {
+        if (!images[index]) return;
+        drawIntoBox(context, images[index], slot, scale);
+      });
+    } else {
+      slotsFor(count, template.width, template.height).forEach((templateSlot, index) => {
+        if (!images[index]) return;
+        const slot = { x: offsetX + templateSlot.x * scale, y: offsetY + templateSlot.y * scale, width: templateSlot.width * scale, height: templateSlot.height * scale };
+        drawCover(context, images[index], slot);
+      });
+    }
     context.drawImage(template, offsetX, offsetY, templateWidth, templateHeight);
-    const inset = Math.max(6, canvas.width * .012);
-    slotsFor(count, template.width, template.height).forEach((templateSlot, index) => {
-      if (!images[index]) return;
-      const slot = {
-        x: offsetX + templateSlot.x * scale,
-        y: offsetY + templateSlot.y * scale,
-        width: templateSlot.width * scale,
-        height: templateSlot.height * scale,
-      };
-      drawCover(context, images[index], { x: slot.x + inset, y: slot.y + inset, width: slot.width - inset * 2, height: slot.height - inset * 2 });
-    });
     return canvas;
   }
   const { deep, wine, pink, blush, gold } = event.palette;
@@ -122,6 +221,28 @@ function drawPartyArt(images, count, event, template) {
   return canvas;
 }
 
+function PhotoCountIcon({ count }) {
+  return (
+    <span className={`party-count-icon party-count-icon-${count}`} aria-hidden="true">
+      {Array.from({ length: count }, (_, index) => <i key={index} />)}
+    </span>
+  );
+}
+
+function PhotoCountSelector({ value, onChange }) {
+  return (
+    <div className="party-counts" role="group" aria-label="Quantidade de fotos">
+      {[1, 2, 3, 4].map((option) => (
+        <button key={option} type="button" className={value === option ? "active" : ""} onClick={() => onChange(option)}>
+          <PhotoCountIcon count={option} />
+          <b>{option}</b>
+          <small>{option === 1 ? "foto" : "fotos"}</small>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function PartySealPage({ event }) {
   const [count, setCount] = useState(1);
   const [photos, setPhotos] = useState([""]);
@@ -135,6 +256,7 @@ export function PartySealPage({ event }) {
   const inputs = useRef([]);
   const nextPhotoIndex = photos.findIndex((photo) => !photo);
   const remaining = photos.filter((photo) => !photo).length;
+  const landscapeHint = count === 2 || (count === 3 && nextPhotoIndex === 2);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,12 +333,12 @@ export function PartySealPage({ event }) {
       <div className="party-copy">
         <p>FESTA DE 15 ANOS</p><h1>Eu fui aos 15 da <em>{event.shortName}.</em></h1>
         <span>Escolha quantas fotos farão parte da sua lembrança. Todas as opções saem no formato de tela cheia para Stories e Reels.</span>
-        <div className="party-counts" role="group" aria-label="Quantidade de fotos">
-          {[1, 2, 3].map((option) => <button key={option} type="button" className={count === option ? "active" : ""} onClick={() => chooseCount(option)}><img src={PARTY_TEMPLATES[option]} alt={`Modelo com ${option} ${option === 1 ? "foto" : "fotos"}`} /><b>{option}</b><small>{option === 1 ? "foto" : "fotos"}</small></button>)}
-        </div>
+        <PhotoCountSelector value={count} onChange={chooseCount} />
         <div className="party-uploads">
           {nextPhotoIndex >= 0 ? <div className="party-upload">
             <input ref={(node) => { inputs.current[nextPhotoIndex] = node; }} id={`party-photo-${nextPhotoIndex}`} type="file" accept="image/*" onChange={(eventInput) => selectPhoto(nextPhotoIndex, eventInput.target.files?.[0])} />
+            {landscapeHint && <small>Para este quadro, tire a foto com o celular deitado.</small>}
+            {landscapeHint && <b className="party-orientation-note">Antes de tocar na prévia: use o celular deitado para esta foto.</b>}
             <small>Toque na prévia abaixo para adicionar a foto {nextPhotoIndex + 1}. Faltam {remaining} {remaining === 1 ? "foto" : "fotos"}.</small>
           </div> : <div className="party-upload party-upload-complete"><span>{count} {count === 1 ? "foto enviada" : "fotos enviadas"}</span><b>Montagem pronta para criar.</b></div>}
         </div>

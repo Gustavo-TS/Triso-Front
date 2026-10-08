@@ -1492,8 +1492,11 @@ export function PaymentReturnPage() {
   const saved = JSON.parse(
     sessionStorage.getItem("triso_current_order") || "null",
   );
-  const orderId =
-    new URLSearchParams(window.location.search).get("order_nsu") || saved?.id;
+  const paymentParams = new URLSearchParams(window.location.search);
+  const paymentData = Object.fromEntries(paymentParams.entries());
+  const orderId = paymentData.order_nsu || saved?.id;
+  if (Object.keys(paymentData).length)
+    sessionStorage.setItem("triso_payment_return", JSON.stringify(paymentData));
   return orderId ? (
     <ConfirmationPage orderId={orderId} />
   ) : (
