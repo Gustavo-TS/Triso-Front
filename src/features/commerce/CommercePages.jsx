@@ -349,11 +349,13 @@ export function CheckoutPage() {
   const orderRef = useRef(null);
   const quotedKeyRef = useRef("");
   const cep = address.postalCode.replace(/\D/g, "");
+  const isPickup = shippingQuoteId === "pickup";
   const itemsKey = lines
     .map((line) => `${line.productId}:${line.quantity}`)
     .join("|");
   const addressReady =
-    [
+    isPickup ||
+    ([
       "recipientName",
       "postalCode",
       "street",
@@ -363,7 +365,7 @@ export function CheckoutPage() {
       "state",
     ].every((key) => String(address[key] || "").trim()) &&
     /^\d{8}$/.test(cep) &&
-    /^[a-z]{2}$/i.test(address.state.trim());
+    /^[a-z]{2}$/i.test(address.state.trim()));
 
   useEffect(() => {
     accountService
@@ -571,6 +573,7 @@ export function CheckoutPage() {
           </span>
           <h1>Entrega e pagamento</h1>
           <p>Informe o CEP para preencher o endereço e calcular o frete.</p>
+          {!isPickup && <>
           <div className="commerce-fields">
             {[
               ["postalCode", "CEP"],
@@ -614,6 +617,7 @@ export function CheckoutPage() {
               Gerenciar endereços
             </button>
           </div>
+          </>}
           <section className="shipping-quotes" aria-live="polite">
             <div className="shipping-quotes-heading">
               <span>ENTREGA</span>

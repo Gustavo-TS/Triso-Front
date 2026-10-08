@@ -16,7 +16,10 @@ export const campaignService = {
   async getDownloads(campaignId) {
     const localCount = readLocal(campaignId);
     try {
-      const body = unwrap(await apiClient.get(downloadsEndpoint(campaignId), { cache: "no-store" }));
+      const body = unwrap(await apiClient.get(downloadsEndpoint(campaignId), {
+        cache: "no-store",
+        credentials: "omit",
+      }));
       const count = responseCount(body);
       const downloadsCount = Number.isFinite(count) ? Math.max(localCount, count) : localCount;
       writeLocal(campaignId, downloadsCount);
@@ -29,7 +32,11 @@ export const campaignService = {
     const nextLocalCount = readLocal(campaignId) + 1;
     writeLocal(campaignId, nextLocalCount);
     try {
-      const body = unwrap(await apiClient.post(downloadsEndpoint(campaignId), { source: "website" }));
+      const body = unwrap(await apiClient.post(
+        downloadsEndpoint(campaignId),
+        { source: "website" },
+        { credentials: "omit" },
+      ));
       const count = responseCount(body);
       const downloadsCount = Number.isFinite(count) ? Math.max(nextLocalCount, count) : nextLocalCount;
       writeLocal(campaignId, downloadsCount);
