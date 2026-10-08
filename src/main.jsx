@@ -16,18 +16,28 @@ import { CartProvider } from './features/cart/CartContext.jsx'
 import { AuthProvider } from './features/auth/AuthContext.jsx'
 import { CampaignSealPage } from './features/campaigns/CampaignSealPage.jsx'
 import { CAMPAIGNS } from './features/campaigns/campaigns.js'
+import { PartySealPage } from './features/events/PartySealPage.jsx'
+import { EVENTS } from './features/events/events.js'
+import { SalesTemplatePage } from './features/sales/SalesTemplatePage.jsx'
 
-const campaignPage = window.location.pathname === '/dralfredo'
-  ? <CampaignSealPage campaign={CAMPAIGNS.dralfredo} />
-  : window.location.pathname === '/marlonreis'
-    ? <CampaignSealPage campaign={CAMPAIGNS.marlonreis} />
-    : window.location.pathname === '/nathanbarbearia'
-      ? <CampaignSealPage campaign={CAMPAIGNS.nathanbarbearia} />
-    : window.location.pathname === '/portalnoticiasbahia'
-      ? <CampaignSealPage campaign={CAMPAIGNS.portalnoticiasbahia} />
-    : null
+const standaloneCampaigns = {
+  '/dralfredo': CAMPAIGNS.dralfredo,
+  '/marlonreis': CAMPAIGNS.marlonreis,
+  '/nathanbarbearia': CAMPAIGNS.nathanbarbearia,
+  '/portalnoticiasbahia': CAMPAIGNS.portalnoticiasbahia,
+  '/inac': CAMPAIGNS.inac,
+  '/modelo-selo': CAMPAIGNS.triso,
+};
+const path = window.location.pathname;
+const standalonePage = standaloneCampaigns[path]
+  ? <CampaignSealPage campaign={standaloneCampaigns[path]} />
+  : path === EVENTS.isabella15.route
+    ? <PartySealPage event={EVENTS.isabella15} />
+    : path === '/apresentacao'
+      ? <SalesTemplatePage />
+      : null
 
 createRoot(document.getElementById('root')).render(
-  <React.StrictMode>{campaignPage || <AuthProvider><CartProvider><App /></CartProvider></AuthProvider>}</React.StrictMode>,
+  <React.StrictMode>{standalonePage || <AuthProvider><CartProvider><App /></CartProvider></AuthProvider>}</React.StrictMode>,
 )
 

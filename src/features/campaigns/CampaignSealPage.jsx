@@ -216,21 +216,10 @@ export function CampaignSealPage({ campaign = CAMPAIGNS.dralfredo }) {
     setSharing(true);
     try {
       const file = new File([finalSeloBlob], `eu-apoio-${campaign.id}-${campaign.number}-${finalFormat.id}-${finalFormat.width}x${finalFormat.height}.png`, { type: "image/png" });
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ title: `${campaign.name} ${campaign.number}`, text: `Meu selo de apoio a ${campaign.name} ${campaign.number}.`, files: [file] });
-      } else if (navigator.share) {
-        await navigator.share({ title: `${campaign.name} ${campaign.number}`, text: "Crie seu selo de apoio.", url: window.location.href });
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(window.location.href);
-        setError("Link copiado. Cole-o onde quiser compartilhar.");
-      } else {
-        saveSelo();
-      }
+      if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file] });
+      else saveSelo();
     } catch (err) {
-      if (err?.name !== "AbortError") {
-        try { await navigator.share?.({ title: `${campaign.name} ${campaign.number}`, url: window.location.href }); }
-        catch { setError("Use Salvar imagem para compartilhar seu selo manualmente."); }
-      }
+      if (err?.name !== "AbortError") saveSelo();
     } finally { setSharing(false); }
   };
 

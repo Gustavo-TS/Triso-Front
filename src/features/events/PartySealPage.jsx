@@ -158,12 +158,20 @@ export function PartySealPage({ event }) {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  const restart = () => {
+    setPhotos(Array.from({ length: count }, () => ""));
+    setFinalBlob(null);
+    setThanksOpen(false);
+    setMessage("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const share = async () => {
     if (!finalBlob || sharing) return;
     setSharing(true);
     try {
       const file = new File([finalBlob], `${event.id}-${count}-fotos.png`, { type: "image/png" });
-      if (navigator.canShare?.({ files: [file] })) await navigator.share({ title: event.name, text: "Minha lembrança da festa está pronta!", files: [file] });
+      if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file] });
       else download();
     } catch (error) { if (error?.name !== "AbortError") download(); }
     finally { setSharing(false); }
@@ -185,11 +193,11 @@ export function PartySealPage({ event }) {
           </div> : <div className="party-upload party-upload-complete"><span>{count} {count === 1 ? "foto enviada" : "fotos enviadas"}</span><b>Montagem pronta para criar.</b></div>}
         </div>
         {message && <p className="party-message">{message}</p>}
-        {nextPhotoIndex < 0 && <div className="party-actions"><button type="button" disabled={creating} onClick={generate}>{creating ? "Preparando a festa..." : "Criar minha lembrança"}</button>{finalBlob && <button type="button" className="secondary" onClick={download}>Baixar PNG</button>}</div>}
+        {nextPhotoIndex < 0 && <div className="party-actions"><button type="button" disabled={creating} onClick={generate}>{creating ? "Preparando a festa..." : "Criar minha lembrança"}</button>{finalBlob && <button type="button" className="secondary" onClick={download}>Baixar lembrança</button>}</div>}
       </div>
       <div className={`party-preview ${nextPhotoIndex >= 0 ? "is-pending" : ""}`} role={nextPhotoIndex >= 0 ? "button" : undefined} tabIndex={nextPhotoIndex >= 0 ? 0 : undefined} onClick={() => nextPhotoIndex >= 0 && inputs.current[nextPhotoIndex]?.click()} onKeyDown={(keyboardEvent) => { if (nextPhotoIndex >= 0 && (keyboardEvent.key === "Enter" || keyboardEvent.key === " ")) { keyboardEvent.preventDefault(); inputs.current[nextPhotoIndex]?.click(); } }}><img src={preview} alt={`Prévia da lembrança com ${count} ${count === 1 ? "foto" : "fotos"}`} />{nextPhotoIndex >= 0 && <span>Toque no espaço da foto {nextPhotoIndex + 1}<small>Faltam {remaining} {remaining === 1 ? "foto" : "fotos"}</small></span>}</div>
     </section>
     {creating && <div className="party-building" role="status" aria-live="polite"><div className="party-confetti" aria-hidden="true">{Array.from({ length: 28 }, (_, index) => <i key={index} style={{ "--item": index }} />)}</div><div className="party-balloon balloon-one" aria-hidden="true" /><div className="party-balloon balloon-two" aria-hidden="true" /><div className="party-building-card"><span>XV</span><h2>{["Separando suas fotos", "Dando brilho à lembrança", "Finalizando sua arte"][buildingStep]}</h2><p>{["Preparando cada momento para entrar na montagem.", "Aplicando a moldura e os detalhes da festa.", "Só mais um instante para sua lembrança ficar pronta."][buildingStep]}</p><ol><li className={buildingStep >= 0 ? "done" : ""}>Fotos</li><li className={buildingStep >= 1 ? "done" : ""}>Moldura</li><li className={buildingStep >= 2 ? "done" : ""}>Finalização</li></ol><div><i /><i /><i /></div></div></div>}
-    {thanksOpen && <div className="party-thanks-backdrop"><section className="party-thanks" role="dialog" aria-modal="true" aria-labelledby="party-thanks-title"><button type="button" onClick={() => setThanksOpen(false)} aria-label="Fechar">×</button><span>LEMBRANÇA PRONTA</span><h2 id="party-thanks-title">Que noite especial!</h2><p>Sua lembrança dos {event.name} está pronta para guardar e compartilhar.</p>{preview && <img src={preview} alt="Lembrança pronta" />}<div><button type="button" onClick={download}>Baixar PNG</button><button type="button" onClick={share} disabled={sharing}>{sharing ? "Abrindo..." : "Compartilhar"}</button></div></section></div>}
+    {thanksOpen && <div className="party-thanks-backdrop"><section className="party-thanks" role="dialog" aria-modal="true" aria-labelledby="party-thanks-title"><button type="button" onClick={() => setThanksOpen(false)} aria-label="Fechar">×</button><span>LEMBRANÇA PRONTA</span><h2 id="party-thanks-title">Que noite especial!</h2><p>Sua lembrança dos {event.name} está pronta para guardar e compartilhar.</p>{preview && <img src={preview} alt="Lembrança pronta" />}<div><button type="button" onClick={download}>Baixar lembrança</button><button type="button" onClick={restart}>Refazer</button></div></section></div>}
   </main>;
 }
