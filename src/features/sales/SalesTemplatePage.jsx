@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TrisoLogo } from "../../components/TrisoLogo.jsx";
 const fitaIsabella4 = "/Triso/Apresentacao/Lembranca_exemplo.png";
 
@@ -18,7 +18,7 @@ const manualItems = [
 const benefits = [["Identidade visual personalizada", "Selo desenvolvido com as cores e elementos da sua marca."], ["Página exclusiva", "Um endereço próprio para divulgar sua campanha."], ["Editor responsivo", "Experiência intuitiva em celulares e computadores."], ["Imagem pronta para compartilhar", "Resultado final preparado para baixar e publicar."]];
 const shareMessage = "Faça parte da nossa comunidade! Acesse o link, escolha sua foto e crie seu selo personalizado para compartilhar.";
 
-const whatsappHref = "https://wa.me/551196435518?text=Ol%C3%A1%2C%20quero%20solicitar%20um%20site%20personalizado%20da%20Triso.";
+const whatsappHref = "https://wa.me/5511966435518?text=Ol%C3%A1%2C%20quero%20solicitar%20um%20site%20personalizado%20da%20Triso.";
 
 function Icon({ name }) {
   const paths = { image: <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8" cy="9" r="1.5" /><path d="m4 17 5-5 3.5 3.5 2.5-2.5 4 4" /></>, crop: <><path d="M7 3v14a4 4 0 0 0 4 4h10" /><path d="M17 3H7" /><path d="M3 7h14a4 4 0 0 1 4 4v10" /></>, share: <><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.5-4.4M8.2 13.2l7.5 4.4" /></>, bolt: <path d="m13 2-9 12h7l-1 8 9-12h-7z" />, phone: <rect x="7" y="2.5" width="10" height="19" rx="2" />, download: <><path d="M12 3v12" /><path d="m7.5 10.5 4.5 4.5 4.5-4.5" /><path d="M4 21h16" /></>, arrow: <><path d="M5 12h13" /><path d="m13 6 6 6-6 6" /></>, external: <><path d="M14 4h6v6" /><path d="m20 4-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></> };
@@ -35,6 +35,14 @@ export function SalesTemplatePage() {
   const [copied, setCopied] = useState(false);
   const copyMessage = async () => { try { await navigator.clipboard.writeText(shareMessage); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { setCopied(false); } };
   const closeMenu = () => setMenuOpen(false);
+  useEffect(() => {
+    const contactUrl = "https://wa.me/5511966435518?text=Ol%C3%A1%2C%20quero%20criar%20uma%20experi%C3%AAncia%20com%20a%20Triso.";
+    document.querySelectorAll('.sales-page:not(.sales-party-page) a[href^="mailto:"]').forEach((link) => {
+      link.href = contactUrl;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+    });
+  }, []);
   return <main className="sales-page"><a className="sales-back-link" href="/apresentacao">Voltar</a>
     <header className="sales-header"><div className="sales-header-inner"><TrisoLogo light /><nav className="sales-nav" aria-label="Navegação principal"><a href="#como-funciona">Como funciona</a><a href="#demonstracao">Demonstração</a><a href="#exemplos">Exemplos</a><a href="#manual">Manual</a><a href="#beneficios">Benefícios</a></nav><a className="sales-header-cta" href="mailto:oi@triso.com.br?subject=Solicitar%20meu%20site">Solicitar meu site <Icon name="arrow" /></a><button className="sales-menu-button" type="button" aria-label="Abrir menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}><i /><i /><i /></button></div><nav className={`sales-mobile-nav ${menuOpen ? "open" : ""}`} aria-label="Navegação mobile"><a href="#como-funciona" onClick={closeMenu}>Como funciona</a><a href="#demonstracao" onClick={closeMenu}>Demonstração</a><a href="#exemplos" onClick={closeMenu}>Exemplos</a><a href="#manual" onClick={closeMenu}>Manual</a><a href="#beneficios" onClick={closeMenu}>Benefícios</a><a href="mailto:oi@triso.com.br?subject=Solicitar%20meu%20site">Solicitar meu site</a></nav></header>
     <section className="sales-hero" aria-labelledby="sales-title"><div className="sales-hero-copy"><span className="sales-kicker">SITES PERSONALIZADOS PARA SUA COMUNIDADE</span><h1 id="sales-title">Seu site de selos, pronto para <em>engajar sua comunidade.</em></h1><p>Transforme sua marca em uma experiência interativa. Seu público envia uma foto, aplica o selo personalizado da sua empresa e compartilha o resultado.</p><div className="sales-actions"><a className="sales-button sales-primary" href="mailto:oi@triso.com.br?subject=Solicitar%20meu%20site">Solicitar meu site <Icon name="arrow" /></a><a className="sales-button sales-secondary" href="#demonstracao">Ver demonstração <Icon name="arrow" /></a></div><div className="sales-hero-benefits"><span><i><Icon name="bolt" /></i><small>Página exclusiva<br />com sua identidade</small></span><span><i><Icon name="phone" /></i><small>Experiência otimizada<br />para celular</small></span><span><i><Icon name="download" /></i><small>Imagem pronta<br />para compartilhar</small></span></div></div><div className="sales-hero-result" aria-label="Exemplo de selo personalizado"><div className="sales-result-glow" /><div className="sales-result-photo"><img src="/Triso/Apresentacao/garoto_base.png" alt="Pessoa sorrindo em uma foto" /><img src="/Triso/Apresentacao/selo_triso.png" alt="Selo oficial da Triso Studio aplicado à foto" /></div><span className="sales-floating-card sales-floating-left">Sua marca<br /><b>em destaque</b></span><span className="sales-floating-card sales-floating-right"><Icon name="phone" /> Experiência<br />completa no celular</span></div></section>
